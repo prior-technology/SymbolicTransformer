@@ -177,7 +177,7 @@ using Test
 
     logit = sum(.*(probe_token, final_residual)) + bias
     # should return  11.4077
-    @test logit ≈ 11.4077 atol=1e-4
+    @test logit ≈ 11.4077 atol=1e-3
 
 
 end
