@@ -1,5 +1,7 @@
 module SymbolicTransformer
 
+include("SymbolCreator.jl")
+
 export LN
 
 "Expectation or Mean of a vector"
@@ -73,7 +75,7 @@ function batch_layer_normalize(residuals)
         residual = LN(residual)
     end
 end
-function forward(transformerBlock::TransformerBlocks , residuals)
+function forward(transformerBlock::TransformerBlock , residuals)
     block_input = batch_layer_normalize(residuals)
    
     attention_out = attention(transformerBlock.attention, block_input)

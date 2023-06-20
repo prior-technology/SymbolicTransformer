@@ -1,4 +1,6 @@
 [deps]
+pytorch = ">=1.10"
+ipykernel = ""
 git = ""
 
 [pip.deps]

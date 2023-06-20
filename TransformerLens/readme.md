@@ -1,6 +1,12 @@
-# Depend on Transformer Lens
+# Goal
+
+This folder will support an environment with Symbolic Transformer in Julia and Transformer Lens in Python. Symbolic Transformer will have an interface to support concrete weights and residual vectors from external transformer implementations. This folder will use Transformer Lens to provide these vectors.
+
+## Setup
 
 This is the start of an attempt to include [Transformer Lens](https://neelnanda-io.github.io/TransformerLens/) in this project, to 
 be used to populate weights and validate implementation.
-On hold for now as clean install using conda (recommended for PythonCall) or pip (supported by PythonCall) was more difficult than expected. 
-Next step is probably a manual install of pytorch first, or duplicating versions from colaboratory.
+
+Transformer-lens installs more easily once pytorch is preinstalled
+
+Attempted to set up an env using miniconda, tried to update CondaPkg.toml to match. Running notebook resulted in torch packages getting removed from existing environment.
