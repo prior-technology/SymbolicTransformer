@@ -6,6 +6,7 @@ version = "1.0.0-DEV"
 [deps]
 LaTeXStrings = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
 NNlib = "872c559c-99b0-510c-b3b7-b6c96a88d5cd"
+Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
 
 [compat]
 julia = "1"

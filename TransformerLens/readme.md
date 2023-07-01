@@ -10,3 +10,6 @@ be used to populate weights and validate implementation.
 Transformer-lens installs more easily once pytorch is preinstalled
 
 Attempted to set up an env using miniconda, tried to update CondaPkg.toml to match. Running notebook resulted in torch packages getting removed from existing environment.
+
+Setup python environment just using conda for torch and pip to install transformer-lens and juliacall. Still not finding the right way to pass ActivationCache type from 
+Transformer Lens to Julia - I'll just have to keep copy-pasting vectors for now.
