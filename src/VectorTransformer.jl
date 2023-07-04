@@ -1,29 +1,6 @@
 "This is a sketch of a transformer implementation based on standard linear algebra operations."
 
-struct Token
-    id
-    text
-    position
-    vector
-end
 
-struct Transformer
-    blocks
-
-
-end
-
-struct TransformerBlock
-    attention
-    feedforward
-    norm1
-    norm2
-end
-
-#pythia-70 sizes
-d_model=512
-n_heads=8
-d_head=d_model/n_heads
 struct Attention_Params
     W_Qs :: Array{Matrix}
     W_Ks :: Array{Matrix}
