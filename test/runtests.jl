@@ -15,3 +15,5 @@ include("../data/pre_norm.jl")
 
     
 end
+
+include("testsymbolcreator.jl")
