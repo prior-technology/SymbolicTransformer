@@ -9,6 +9,7 @@ NNlib = "872c559c-99b0-510c-b3b7-b6c96a88d5cd"
 Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
 
 [compat]
+LaTeXStrings = "1"
 julia = "1"
 
 [extras]
