@@ -43,6 +43,4 @@ function transform_expression(T::Transformer, x::Residual)
     y = T(x)
 end
     
-function expand
-
 end
