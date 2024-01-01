@@ -58,7 +58,7 @@ function attention_head(attention::Attention_Params, residual, h)
     q = apply_rotary(q)
     k = apply_rotary(k)
     #TODO: continue- calculate attention scores
-    attention_matrix = attention_scores(q, k)
+    attention_matrix = attention_scores(h, q, k)
     softmax
     O = attention.W_O * attention_in
     return O
@@ -74,4 +74,8 @@ function attention_scores(h, q, k)
         end
     end
     return attention_scores ./ sqrt(d_head) 
+end
+
+function apply_rotary(x)
+
 end
