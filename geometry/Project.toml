@@ -1,5 +1,7 @@
 [deps]
 GLMakie = "e9467ef8-e4e7-5192-8a1a-b1aee30e663a"
+GeometryBasics = "5c1252a2-5f33-56bf-86c9-59e7332b4326"
 Grassmann = "4df31cd9-4c27-5bea-88d0-e6a7146666d8"
 Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
+Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
 SymbolicTransformer = "9295511b-303f-4566-8a7e-0c11da6792f2"
