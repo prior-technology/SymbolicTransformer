@@ -1,6 +1,6 @@
-using PythonCall
-
 module HuggingfaceTransformer
+
+    using PythonCall
 
     export use_pythia_70m
 

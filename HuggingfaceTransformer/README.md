@@ -34,7 +34,6 @@ In Julia REPL, use `]` to switch to package manager.
 
 ```
 activate HuggingfaceTransformer
-instantiate
 ```
 
 Backspace to return to the Julia REPL prompt
