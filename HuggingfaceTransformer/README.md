@@ -24,9 +24,7 @@ conda install pytorch pytorch-cuda=12.1 -c pytorch -c nvidia
 Models are downloaded and cached in models folder
 
 
-# Notes
-
-The install of pytorch is several gb, and transformer models can be much larger. The model referenced by use_pythia_70m is 161mb.
+# Usage
 
 To run this, start in the repos root folder
 
@@ -42,3 +40,7 @@ Backspace to return to the Julia REPL prompt
 using HuggingfaceTransformer
 use_pythia_70m()
 ```
+
+# Notes
+
+The install of is several gb, mainly from pytorch. Transformer models can be much larger. The model referenced by use_pythia_70m is 161mb.
