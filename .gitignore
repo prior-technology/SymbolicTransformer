@@ -1,4 +1,4 @@
 /Manifest.toml
 **/.CondaPkg/*
 scratch/*.ipynb
-models/*
+**/models/*
