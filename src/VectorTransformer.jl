@@ -1,6 +1,37 @@
 "This is a sketch of a transformer implementation based on standard linear algebra operations."
 
 
+using LinearAlgebra
+
+export ModelConfig, Pythia70ModelConfig
+
+struct ModelConfig
+    seq_len :: Integer 
+    rotary_pct
+    rotary_emb_base
+    d_model
+    n_heads
+    d_head
+end
+
+
+function Pythia70ModelConfig()
+    
+    #from https://github.com/EleutherAI/pythia/blob/main/models/70M/pythia-70m-deduped.yml"
+    seq_len = 2048
+    #From https://github.com/EleutherAI/pythia/blob/main/models/70M/pythia-70m-deduped.yml"
+    rotary_pct=0.25
+    #From https://github.com/EleutherAI/gpt-neox/blob/v2.0/megatron/neox_arguments/neox_args.py#L286"
+    rotary_emb_base = 10000
+    #more pythia-70 sizes
+    d_model=512
+    n_heads=8
+    d_head=d_model/n_heads
+    return ModelConfig(seq_len, rotary_pct, rotary_emb_base, d_model, n_heads, d_head)
+
+ 
+end
+
 struct Attention_Params
     W_Qs :: Array{Matrix}
     W_Ks :: Array{Matrix}
@@ -12,16 +43,12 @@ struct Attention_Params
 
 end
 
-function Base.show(io::IO, t::Token)
-    print(io, "$(t.text)_{$(position)}")
-end
 
 
-function forward(transformer::TransformerBlock, residuals)
-    #assume that residuals are already embedded and positioned
-
+function apply_transformer(transformer, residuals)
+    #assume that residuals are already embedded
     for block in transformer.blocks
-        residuals = residuals + forward(block, residuals)
+        residuals = residuals + apply_transformer_block(block, residuals)
     end
 end
 
@@ -30,40 +57,44 @@ function batch_layer_normalize(residuals)
         residual = LN(residual)
     end
 end
-function forward(transformerBlock::TransformerBlock , residuals)
+
+function apply_transformer_block(transformer_block , residuals)
     block_input = batch_layer_normalize(residuals)
    
-    attention_out = attention(transformerBlock.attention, block_input)
+    attention_out = attention(transformer_block.attention, block_input)
     mlp_in = batch_layer_normalize(attention_out)
-    mlp_out = mlp(transformerBlock.feedforward, mlp_in)
+    mlp_out = mlp(transformer_block.feedforward, mlp_in)
     return mlp_out
 
 end
 
-function attention(attention, attention_in)
+function attention(attention_params, attention_in)
+    attention_out=attention_in
     for h = 1:n_heads
-        attention_out = attention_out + attention_head(attention, attention_in, h)
+        attention_out = attention_out + attention_head(attention_params, attention_in, h)
     end
     return attention_out
 end
 
-function attention_head(attention::Attention_Params, residual, h)
+function attention_head(attention::Attention_Params, residuals, h)
     W_Q = attention.W_Qs[h]
-    q = ( W_Q * residual ) + attention.W_Q_bias
+    q = ( W_Q * residuals ) + attention.W_Q_bias
     W_K = attention.W_Ks[h]
-    k = ( W_K * residual ) + attention.W_K_bias
+    k = ( W_K * residuals ) + attention.W_K_bias
     W_V = attention.W_Vs[h]
     v = ( W_V * residual ) + attention.W_V_bias
 
     q = apply_rotary(q)
     k = apply_rotary(k)
-    #TODO: continue- calculate attention scores
+    
     attention_matrix = attention_scores(h, q, k)
     softmax
     O = attention.W_O * attention_in
     return O
 end
 
+
+"Based on transformer lens AFAIR"
 function attention_scores(h, q, k)
     attention_scores = zeros(seq_len, seq_len)
     for pos = 1:seq_len
@@ -76,6 +107,48 @@ function attention_scores(h, q, k)
     return attention_scores ./ sqrt(d_head) 
 end
 
-function apply_rotary(x)
+
+function inverse_frequencies(base, ndims)
+    return 1 / (base ^ (range(0, step=2, stop=ndims) / ndims))
+end
+
+"based on RotaryEmbedding from https://github.com/EleutherAI/gpt-neox/blob/v2.0/megatron/model/positional_embeddings.py"
+function frequencies(base, ndims, sequence_length)
+    base_frequencies = collect(inverse_frequencies(base, ndims))
+    position_array = collect(range(sequence_length))
+    frequencies = base_frequencies * position_array'
+end
+
+
+function rotate_half(x)
+    # Split the array along the last dimension
+    middle_index = size(x, ndims(x)) ÷ 2  
+    x1 = x[:, 1:middle_index]
+    x2 = x[:, middle_index+1:end]
+
+    # Concatenate along the last dimension with negation of the second part
+    return cat(-x2, x1, dims=ndims(x))
+end
+
+"based on https://github.com/EleutherAI/gpt-neox/blob/v2.0/megatron/model/transformer.py"
+function apply_rotary(x) 
+    # x should have 2 dimensions, num_positions, d_head 
+    #Trying to stay as close to got-neox implementation as possible. When trying to implement this 
+    #symbolically we may think of it as if there are two head-spaces, one gets rotated
+    #and one doesn't, and they are summed after MLP matrix before LN
+
+    d_head = size(x,2)
+    rotary_ndims = int(d_head * rotary_pct)        
+    x_rot = x[:, 1:rotary_ndims]
+    x_pass = x[:, rotary_ndims+1:end]
+
+    
+    sequence_length = size(x, 1)
+
+    (sin_array, cos_array) = Math.sincos(frequencies(base, ndims, sequence_length))
+    x_rotated = (x_rot * cos_array) + (rotate_half(x_rot) * sin_array)
+
+    return cat(x_rotated, x_pass, dims=ndims(x))
 
 end
+
