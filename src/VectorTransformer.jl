@@ -108,8 +108,9 @@ function attention_scores(h, q, k)
 end
 
 
-function inverse_frequencies(base, ndims)
-    return 1 / (base ^ (range(0, step=2, stop=ndims) / ndims))
+function inverse_frequencies(base::Integer, ndims::Integer)
+    r = collect(range(0, step=2, stop=ndims))
+    return 1 ./ (base .^ (r ./ ndims))
 end
 
 "based on RotaryEmbedding from https://github.com/EleutherAI/gpt-neox/blob/v2.0/megatron/model/positional_embeddings.py"
