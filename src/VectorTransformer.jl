@@ -116,7 +116,7 @@ end
 "based on RotaryEmbedding from https://github.com/EleutherAI/gpt-neox/blob/v2.0/megatron/model/positional_embeddings.py"
 function frequencies(base, ndims, sequence_length)
     base_frequencies = collect(inverse_frequencies(base, ndims))
-    position_array = collect(range(sequence_length))
+    position_array = collect(range(1,sequence_length))
     frequencies = base_frequencies * position_array'
 end
 
@@ -132,22 +132,24 @@ function rotate_half(x)
 end
 
 "based on https://github.com/EleutherAI/gpt-neox/blob/v2.0/megatron/model/transformer.py"
-function apply_rotary(x) 
+function apply_rotary(config::ModelConfig, x) 
     # x should have 2 dimensions, num_positions, d_head 
     #Trying to stay as close to got-neox implementation as possible. When trying to implement this 
     #symbolically we may think of it as if there are two head-spaces, one gets rotated
     #and one doesn't, and they are summed after MLP matrix before LN
 
     d_head = size(x,2)
-    rotary_ndims = int(d_head * rotary_pct)        
+    rotary_ndims = floor(Integer, d_head * config.rotary_pct)
     x_rot = x[:, 1:rotary_ndims]
     x_pass = x[:, rotary_ndims+1:end]
 
     
     sequence_length = size(x, 1)
 
-    (sin_array, cos_array) = Math.sincos(frequencies(base, ndims, sequence_length))
-    x_rotated = (x_rot * cos_array) + (rotate_half(x_rot) * sin_array)
+    f = frequencies(config.rotary_emb_base, rotary_ndims, sequence_length)
+    sin_array = sin.(f)
+    cos_array = cos.(f)
+    x_rotated = (x_rot .* cos_array) + (rotate_half(x_rot) .* sin_array)
 
     return cat(x_rotated, x_pass, dims=ndims(x))
 

@@ -17,3 +17,32 @@ end
     r = SymbolicTransformer.rotate_half(m)
     @test r == [-3 -4 -5 1 2; -30 -40 -50 10 20]
 end
+
+@testset "frequencies" begin
+    m = SymbolicTransformer.frequencies(100, 16, 40)
+    
+    @test size(m) == (9,40)
+    @test m[1,1] == 1.0
+    @test m[9,40] == 0.4
+    
+end
+
+function TestModelConfig()
+    seq_len = 120
+    rotary_pct=0.25
+    rotary_emb_base = 100
+    d_model=512
+    n_heads=8
+    d_head=d_model/n_heads
+    return ModelConfig(seq_len, rotary_pct, rotary_emb_base, d_model, n_heads, d_head)
+end
+@testset "apply_rotary" begin
+    m = [1 2 3 4 5 6 7 8; 10 20 30 40 50 60 70 80]
+    config = TestModelConfig()
+    r = SymbolicTransformer.apply_rotary(config, m)
+
+    @test size(r) == size(m)
+    @test r[1,1] ≈ (cos(1) - (2 * sin(1)))
+    @test r[1,4] == 4   
+    
+end
