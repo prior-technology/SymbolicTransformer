@@ -1,7 +1,5 @@
 module SymbolicTransformer
 
-using Symbolics
-
 include("SymbolCreator.jl")
 include("LayerNormalization.jl")
 include("VectorTransformer.jl")
