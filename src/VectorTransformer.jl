@@ -2,6 +2,7 @@
 
 
 using LinearAlgebra
+import NNlib
 
 export ModelConfig, Pythia70ModelConfig
 
@@ -32,14 +33,15 @@ function Pythia70ModelConfig()
  
 end
 
-struct Attention_Params
+struct AttentionParams
     W_Qs :: Array{Matrix}
     W_Ks :: Array{Matrix}
     W_Vs :: Array{Matrix}
     W_Os :: Array{Matrix}
-    b_Q :: Vector
-    b_K :: Vector
-    b_V :: Vector
+    bias_Q :: Vector
+    bias_K :: Vector
+    bias_V :: Vector
+    bias_O :: Vector
 
 end
 
@@ -48,7 +50,7 @@ end
 function apply_transformer(transformer, residuals)
     #assume that residuals are already embedded
     for block in transformer.blocks
-        residuals = residuals + apply_transformer_block(block, residuals)
+        residuals = residuals + apply_transformer_block(transformer.config, block, residuals)
     end
 end
 
@@ -58,53 +60,58 @@ function batch_layer_normalize(residuals)
     end
 end
 
-function apply_transformer_block(transformer_block , residuals)
+function apply_transformer_block(config::ModelConfig, transformer_block , residuals)
     block_input = batch_layer_normalize(residuals)
    
-    attention_out = attention(transformer_block.attention, block_input)
+    attention_out = attention(config, transformer_block.attention, block_input)
     mlp_in = batch_layer_normalize(attention_out)
     mlp_out = mlp(transformer_block.feedforward, mlp_in)
     return mlp_out
 
 end
 
-function attention(attention_params, attention_in)
+function attention(config::ModelConfig, AttentionParams, attention_in)
     attention_out=attention_in
     for h = 1:n_heads
-        attention_out = attention_out + attention_head(attention_params, attention_in, h)
+        attention_out = attention_out + attention_head(config, AttentionParams, attention_in, h)
     end
     return attention_out
 end
 
-function attention_head(attention::Attention_Params, residuals, h)
+"based on Attention.forward in https://github.com/neelnanda-io/TransformerLens/blob/v1.14.0/transformer_lens/components.py"
+function attention_head(config::ModelConfig, attention::AttentionParams, residuals, h)
     W_Q = attention.W_Qs[h]
-    q = ( W_Q * residuals ) + attention.W_Q_bias
+    q = ( W_Q * residuals ) + attention.bias_Q
     W_K = attention.W_Ks[h]
-    k = ( W_K * residuals ) + attention.W_K_bias
+    k = ( W_K * residuals ) + attention.bias_K
     W_V = attention.W_Vs[h]
-    v = ( W_V * residual ) + attention.W_V_bias
+    v = ( W_V * residual ) + attention.bias_V
 
-    q = apply_rotary(q)
-    k = apply_rotary(k)
+    q = apply_rotary(config, q)
+    k = apply_rotary(config, k)
     
-    attention_matrix = attention_scores(h, q, k)
-    softmax
-    O = attention.W_O * attention_in
+    attention_matrix = attention_scores(config, q, k)
+    pattern = NNlib.softmax(attention_matrix, dims=ndims(attention_matrix))
+    #TODO: check dimensions used here, transformer lens reorders through einsum
+    z = pattern * v
+    W_O = attention.W_Os[h]
+    O = z * W_O +  attention.bias_O
     return O
 end
 
 
 "Based on transformer lens AFAIR"
-function attention_scores(h, q, k)
-    attention_scores = zeros(seq_len, seq_len)
-    for pos = 1:seq_len
+function attention_scores(config::ModelConfig, q::AbstractMatrix, k::AbstractMatrix)
+    #q and k should be num_positions x head_dims
+    attention_scores = zeros(config.seq_len, config.seq_len)
+    for pos = 1:config.seq_len
         for pos2 = 1:pos
-            q = q[pos, h]
-            k = k[pos2, h]
+            q = q[pos]
+            k = k[pos2]
             attention_scores[pos, pos2] = q * k
         end
     end
-    return attention_scores ./ sqrt(d_head) 
+    return attention_scores ./ sqrt(config.d_head) 
 end
 
 

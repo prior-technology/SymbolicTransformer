@@ -31,7 +31,7 @@ function TestModelConfig()
     seq_len = 120
     rotary_pct=0.25
     rotary_emb_base = 100
-    d_model=512
+    d_model=64
     n_heads=8
     d_head=d_model/n_heads
     return ModelConfig(seq_len, rotary_pct, rotary_emb_base, d_model, n_heads, d_head)
@@ -46,3 +46,11 @@ end
     @test r[1,4] == 4   
     
 end
+
+#TODO: next
+# @testset "attention_scores" begin
+#     q = [1 2 3 4 5 6 7 8; 10 20 30 40 50 60 70 80]
+#     k = [1 2 3 4 5 6 7 8; 1 1 1 1 1 1 1 1 ]
+#     config = TestModelConfig()
+#     SymbolicTransformer.attention_scores(config, q, k)
+# end
