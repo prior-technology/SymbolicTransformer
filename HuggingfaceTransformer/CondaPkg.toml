@@ -1,0 +1,11 @@
+channels = ["pytorch", "nvidia"]
+
+[deps.pytorch-cuda]
+channel = "pytorch"
+version = "=12.1"
+
+[deps.pytorch]
+channel = "pytorch"
+
+[deps.transformers]
+channel = "conda-forge"

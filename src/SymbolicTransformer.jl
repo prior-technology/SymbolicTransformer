@@ -1,9 +1,8 @@
 module SymbolicTransformer
 
-using Symbolics
-
 include("SymbolCreator.jl")
 include("LayerNormalization.jl")
+include("VectorTransformer.jl")
 
 #abstract type Residual <:AbstractVector  end
 # "returns an expression which represents the operation of a transformer on a residual vector.
@@ -17,7 +16,9 @@ struct Token
     position
     vector
 end
-
+function Base.show(io::IO, t::Token)
+    print(io, "$(t.text)_{$(position)}")
+end
 struct Transformer
     blocks
 end
@@ -29,10 +30,6 @@ struct TransformerBlock
     norm2
 end
 
-#pythia-70 sizes
-d_model=512
-n_heads=8
-d_head=d_model/n_heads
 
 struct Residual
     vector
@@ -43,6 +40,4 @@ function transform_expression(T::Transformer, x::Residual)
     y = T(x)
 end
     
-function expand
-
 end
