@@ -101,17 +101,22 @@ end
 
 
 "Based on transformer lens AFAIR"
-function attention_scores(config::ModelConfig, q::AbstractMatrix, k::AbstractMatrix)
+function attention_scores(q::AbstractMatrix, k::AbstractMatrix)
     #q and k should be num_positions x head_dims
-    attention_scores = zeros(config.seq_len, config.seq_len)
-    for pos = 1:config.seq_len
+    
+    input_len = size(q,1)
+    d_head = size(q,2)
+    attention_scores = -1 ./ zeros(input_len,input_len)
+
+
+    for pos = 1:input_len
         for pos2 = 1:pos
-            q = q[pos]
-            k = k[pos2]
-            attention_scores[pos, pos2] = q * k
+            q_vec = q[pos,:]
+            k_vec = k[pos2,:]
+            attention_scores[pos, pos2] = q_vec' * k_vec
         end
     end
-    return attention_scores ./ sqrt(config.d_head) 
+    return attention_scores ./ sqrt(d_head) 
 end
 
 

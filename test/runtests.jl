@@ -18,3 +18,4 @@ end
 
 include("testsymbolcreator.jl")
 include("TestVectorTransformer.jl")
+include("TestAttention.jl")
