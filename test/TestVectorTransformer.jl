@@ -47,10 +47,3 @@ end
     
 end
 
-#TODO: next
-# @testset "attention_scores" begin
-#     q = [1 2 3 4 5 6 7 8; 10 20 30 40 50 60 70 80]
-#     k = [1 2 3 4 5 6 7 8; 1 1 1 1 1 1 1 1 ]
-#     config = TestModelConfig()
-#     SymbolicTransformer.attention_scores(config, q, k)
-# end
