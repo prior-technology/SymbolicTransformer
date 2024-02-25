@@ -90,7 +90,7 @@ function attention_head(config::ModelConfig, attention::AttentionParams, residua
     q = apply_rotary(config, q)
     k = apply_rotary(config, k)
     
-    attention_matrix = attention_scores(config, q, k)
+    attention_matrix = attention_scores(q, k)
     pattern = NNlib.softmax(attention_matrix, dims=ndims(attention_matrix))
     #TODO: check dimensions used here, transformer lens reorders through einsum
     z = pattern * v

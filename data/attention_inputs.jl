@@ -17,9 +17,9 @@
 #remove first line from each csv
 
 using DelimitedFiles
-folder = dirname(@__FILE__)
-q = readdlm(joinpath(folder,"q.csv"), ',', Float16, '\n')
-k = readdlm(joinpath(folder,"k.csv"), ',', Float16, '\n')
+
+q = readdlm(joinpath(@__DIR__,"q.csv"), ',', Float16, '\n')
+k = readdlm(joinpath(@__DIR__,"k.csv"), ',', Float16, '\n')
 
 expected_attention =  readdlm(joinpath(folder,"a.csv"), ',', Float16, '\n')
 
