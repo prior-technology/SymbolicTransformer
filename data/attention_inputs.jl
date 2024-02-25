@@ -21,5 +21,5 @@ using DelimitedFiles
 q = readdlm(joinpath(@__DIR__,"q.csv"), ',', Float16, '\n')
 k = readdlm(joinpath(@__DIR__,"k.csv"), ',', Float16, '\n')
 
-expected_attention =  readdlm(joinpath(folder,"a.csv"), ',', Float16, '\n')
+expected_attention =  readdlm(joinpath(@__DIR__,"a.csv"), ',', Float16, '\n')
 
