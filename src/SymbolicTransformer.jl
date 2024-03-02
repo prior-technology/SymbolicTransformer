@@ -17,7 +17,7 @@ struct Token
     vector
 end
 function Base.show(io::IO, t::Token)
-    print(io, "$(t.text)_{$(position)}")
+    print(io, "$(t.text)_{$(t.position)}")
 end
 struct Transformer
     blocks
@@ -30,9 +30,16 @@ struct TransformerBlock
     norm2
 end
 
-
+struct Operation 
+    weights :: AbstractVecOrMat
+    forward :: Function
+    expression :: Expr
+    label :: AbstractString
+end
 struct Residual
-    vector
+    vector :: AbstractVector
+    expression :: Expr
+    label :: AbstractString
 end
 
 "Return a symbolic expression that shows that T acts on x to produce a new residual y"
