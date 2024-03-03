@@ -1,35 +1,51 @@
 using Transformers
 using Transformers.TextEncoders
+using Transformers.HuggingFace
 
 module WrappedTransformer
 "Wraps model from Transformer.jl"
 
-#PythiaTransformer inherits Operation
-struct PythiaTransformer <: Operation
-    forward
-    expression    
-    textencoder
-    model
+struct PromptedTransformer{M <: Transformers.HuggingFace.HGFPreTrainedModel, E <: Transformers.TextEncoders.AbstractTransformerTextEncoder} <: Operation
+    model :: M
+    encoder :: E
+    prompt :: AbstractString
+    expression :: Expr      
 end
-struct Token
-    id
-    text
-    position
-    vector
-end
-function transform(utterance)
-    "This method tokenizes the utterance, and returns an operation"
-    textencoder, model = hgf"EleutherAI/pythia-70m-deduped"
-    tokens = tokenize(textencoder, utterance)
-    apply_transformer = function(residual :: Residual)
-        tokens = append!(tokens, residual.vector)
-        
-        for block in model.blocks
-            residuals = residuals + apply_transformer_block(model.config, block, residuals)
-        end
-    end
-    return PythiaTransformer(apply_transformer, Expr(:block, tokens), textencoder, model)
+struct HGFResidual{M <: Transformers.HuggingFace.HGFPreTrainedModel, E <: Transformers.TextEncoders.AbstractTransformerTextEncoder} <: Residual
+    model :: M
+    encoder :: E
+    vector :: AbstractVector
+    expression :: Expr
+    label :: AbstractString
 end
 
+
+function prompt(model :: Transformers.HuggingFace.HGFPreTrainedModel,encoder,utterance)
+    "tokenizes the utterance, and returns an operation"
+    tokens = tokenize(encoder, utterance)
+    return PromptedTransformer(model, encoder, utterance, tokens)
+end
+
+function residual(model:: Transformers.HuggingFace.HGFPreTrainedModel, 
+        encoder :: Transformers.TextEncoders.AbstractTransformerTextEncoder,
+        token)
+    "returns a Residual"
+    label = decode(encoder,token)
+    vector = model.embed((; token=token))
+    expression = :(embed($label))
+    return HGFResidual( model, encoder, vector, expression, label)
+end
+function embed(model, encoder, utterance)
+    "tokenizes the utterance, and returns a Vector of Residuals"
+    tokens = encode(encoder, utterance).token
+    #embeddings = model.embed(tokens)
+    return map(token -> residual(model, encoder, token), tokens.onehots)
+
+end
+function *(T::PromptedTransformer, r::Residual)
+    "applies the model to the token"
+    y = T.model(x)
+    return HGFResidual(T.model, T.encoder, y, :((T.expression) * (r.expression)), string(T, " ", r.label))
+end
 
 end

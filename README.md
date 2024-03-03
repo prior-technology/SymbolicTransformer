@@ -10,25 +10,27 @@ Language models consist of billions of numbers which are combined in a complicat
 
 ```julia
 
+julia> using Transformers.HuggingFace
+
 julia> using SymbolicTransformer
 
-julia> SymbolicTransformer.transformer(hgf"", "The capital of Ireland")
-T
+julia> encoder, model = hgf"EleutherAI/pythia-70m-deduped"
 
-julia> T.embed(" is")
-residual(" is")
+
+julia> T = prompt(model, "The capital of Ireland")
+PromptedTransformer
+
+julia> embed(" is")
+Residual(" is")
 
 julia> T * r
-residual(T ⊙ " is")
+Residual(T * " is")
 
-julia> :(T ⊙ r)
-:(T ⊙ r)
+julia> :(T * r)
+:(T * r)
 
-julia> expand(:(T ⊙ r))
-:(L4 ⊙ (L3 ⊙ (L2 ⊙ (L1 ⊙ r)))
-
-\odot
-
+julia> expand(:(T * r))
+:(L4 * (L3 * (L2 * (L1 * r))))
 
 ```
 
