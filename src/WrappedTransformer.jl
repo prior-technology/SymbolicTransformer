@@ -43,8 +43,8 @@ end
 
 "returns a Residual representing embedding a single token"
 function residual(transformer, token)
-    label = decode(transformer.encoder,token)
-    vector = transformer.model.embed((; token=token))
+    label = decode(transformer.encoder,token)[1]
+    vector = transformer.model.embed((; token=token))[1]
     expression = :(embed($label))
     return HGFResidual( transformer, vector, expression, label)
 end
