@@ -17,10 +17,10 @@ julia> using SymbolicTransformer
 julia> encoder, model = hgf"EleutherAI/pythia-70m-deduped"
 
 
-julia> T = prompt(model, "The capital of Ireland")
+julia> T = prompt(model, encoder, "The capital of Ireland")
 PromptedTransformer
 
-julia> embed(" is")
+julia> embed(T, " is")
 Residual(" is")
 
 julia> T * r
@@ -34,10 +34,9 @@ julia> expand(:(T * r))
 
 ```
 
-# Get Started
 
-In the repo folder press `]` to enter REPL mode then use `activate .` to load the package.
+# Plans
 
-
+I'm aiming to see the flow through using Transformers.jl with Pythia/GPTNeo-X models. Later it should be possible to abstract out the logic which doesn't directly depend on a specific implementation.
 
 [![Build Status](https://github.com/prior-technology/SymbolicTransformer/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/prior-technology/SymbolicTransformer/actions/workflows/CI.yml?query=branch%3Amain)

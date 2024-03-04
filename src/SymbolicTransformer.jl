@@ -1,9 +1,5 @@
 module SymbolicTransformer
 
-include("LayerNormalization.jl")
-include("VectorTransformer.jl")
-include("WrappedTransformer.jl")
-
 abstract type Operation end
 #     expression :: Expr
 #     label :: AbstractString
@@ -14,6 +10,12 @@ abstract type Residual end
 #     expression :: Expr
 #     label :: AbstractString
 # end
+
+include("LayerNormalization.jl")
+include("VectorTransformer.jl")
+include("WrappedTransformer.jl")
+
+
 
     
 end
