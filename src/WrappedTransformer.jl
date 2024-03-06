@@ -4,6 +4,8 @@ using Transformers.TextEncoders
 using Transformers.HuggingFace
 using SymbolicTransformer
 
+export PromptedTransformer, HGFResidual, prompt, embed
+
 "Wraps a transformer and encoder with a prompt"
 struct PromptedTransformer <: SymbolicTransformer.Operation
     "Huggingface pretrained model"
@@ -20,8 +22,6 @@ end
 
 "Represents a vector in the transformer's residual space"
 struct HGFResidual <:  SymbolicTransformer.Residual
-    "Top level transformer for this residual"
-    transformer 
     "vector in the residual space"
     vector 
     "Expression showing the source of this residual"
@@ -41,25 +41,31 @@ function prompt(model,
     return PromptedTransformer(model, encoder, utterance, tokens, :(T))
 end
 
-"returns a Residual representing embedding a single token"
-function residual(transformer, token)
-    label = decode(transformer.encoder,token)[1]
-    vector = transformer.model.embed((; token=token))[1]
-    expression = :(embed($label))
-    return HGFResidual( transformer, vector, expression, label)
+"tokenizes the utterance, and returns a Vector of Residuals representing the embedding vectors"
+function embed(transformer, utterance)    
+    tokens = encode(transformer.encoder, utterance).token
+    labels = decode(transformer.encoder,tokens)
+    vectors = transformer.model.embed((; token=tokens))
+    expressions = map(x -> :(embed($x)), labels)
+    residuals = map(x -> 
+        HGFResidual(vectors.hidden_state[:,x],
+            expressions[x], 
+            labels[x]), 
+        1:length(labels))
+    return residuals
 end
 
-# function embed(PromptedTransformer, utterance)
-#     "tokenizes the utterance, and returns a Vector of Residuals"
-#     tokens = encode(encoder, utterance).token
-#     #embeddings = model.embed(tokens)
-#     return map(token -> residual(model, encoder, token), tokens.onehots)
-
-# end
-# function *(T::PromptedTransformer, r:: SymbolicTransformer.Residual)
-#     "applies the model to the token"
-#     y = T.model(x)
-#     return HGFResidual(T.model, T.encoder, y, :((T.expression) * (r.expression)), string(T, " ", r.label))
-# end
+"applies the model to the token"
+function Base.:(*)(T::PromptedTransformer, r:: HGFResidual)
+    #To transform a new token at the end of a batch of tokens, we would push! the index of the 
+    #new token onto tokens.onehots, which applies a corresponding change to the tokens OneHotArray
+    
+    #In this case we want to pass in an arbitrary residual vector, so we should bypass the embedding layer
+    input = (; token=T.tokens)
+    residuals = T.model.embed(input)
+    hidden_state = hcat(residuals.hidden_state, r.vector)
+    y = T.model.decoder((; hidden_state=hidden_state))
+    return HGFResidual(y.hidden_state, :((T.expression) * (r.expression)), string("T ", r.label))
+end
 
 end
