@@ -8,6 +8,41 @@ Language models consist of billions of numbers which are combined in a complicat
 
 # End Goal
 
+```
+
+julia> using SymbolicTransformer
+
+julia> SymbolicTransformer.transformer(hgf"", "The capital of Ireland")
+T
+
+julia> T.embed(" is")
+residual(" is")
+
+julia> T * r
+residual("T is)
+
+julia> :(T * r)
+:(T * r)
+
+julia> expand(:(T * r))
+:(L4 * (L3 * (L2 * (L1 * r)))
+
+...not sure what goes here...
+
+julia> L1 * r
+Key1 + V2 + r 
+
+
+
+
+```
+
+# Motivation
+
+Language models consist of billions of numbers which are combined in a complicated pattern with other blocks of numbers which represent meaningful text to generate more numbers representing more text. The goal here is to name symbols representing different stages of this calculation.
+
+# End Goal
+
 ```julia
 
 julia> using Transformers.HuggingFace

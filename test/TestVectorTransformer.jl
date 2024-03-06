@@ -47,3 +47,13 @@ end
     
 end
 
+@testset "apply_rotary" begin
+    m = [1 2 3 4 5 6 7 8; 10 20 30 40 50 60 70 80]
+    config = TestModelConfig()
+    r = SymbolicTransformer.apply_rotary(config, m)
+
+    @test size(r) == size(m)
+    @test r[1,1] ≈ (cos(1) - (2 * sin(1)))
+    @test r[1,4] == 4   
+    
+end
