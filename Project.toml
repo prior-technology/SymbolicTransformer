@@ -12,9 +12,9 @@ Transformers = "21ca0261-441d-5938-ace7-c90938fde4d4"
 
 [compat]
 DelimitedFiles = "1"
-NNlib = "0.8"
-Transformers = "0.2"
 LaTeXStrings = "1"
+NNlib = "0.8, 0.9"
+Transformers = "0.2"
 julia = "1.9"
 
 [extras]
