@@ -68,4 +68,7 @@ function Base.:(*)(T::PromptedTransformer, r:: HGFResidual)
     return HGFResidual(y.hidden_state, :((T.expression) * (r.expression)), string("T ", r.label))
 end
 
+function unembeds(T::PromptedTransformer,i)
+    return T.model.cls.layer.embed.embeddings[:,i]
+end
 end

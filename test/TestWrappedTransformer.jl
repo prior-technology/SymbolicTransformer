@@ -2,7 +2,8 @@ using Transformers.HuggingFace
 using Transformers.TextEncoders
 using SymbolicTransformer.WrappedTransformer
 
-encoder, model = hgf"EleutherAI/pythia-14m"
+encoder = hgf"EleutherAI/pythia-14m:tokenizer"
+model = hgf"EleutherAI/pythia-14m:forcausallm"
 
 @testset "embed" begin
     T = prompt(model, encoder, "Hello, world!")    
