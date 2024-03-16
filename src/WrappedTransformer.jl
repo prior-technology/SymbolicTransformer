@@ -11,7 +11,11 @@ struct PromptedTransformer <: SymbolicTransformer.Operation
     "Huggingface pretrained model"
     model 
     "TextEncoder corresponding with model"
-    encoder 
+    encoder
+    "Embedding layer"
+    embed
+    "Output layer which maps residual vectors to logits"
+    unembed
     "Original string of the prompt"
     prompt :: AbstractString
     "result of Transformers.TextEncoders.encode - nvocab x ntokens OneHotArray"
@@ -32,21 +36,44 @@ end
 
 
 "tokenizes the utterance, and returns an operation"
-function prompt(model,
+function prompt(causal_lm_model::Transformers.HuggingFace.HGFGPTNeoXForCausalLM,
         encoder,
         utterance)
+    model = causal_lm_model.model
+    unembed = causal_lm_model.cls
+    embed = model.embed
     
     tokens = encode(encoder, utterance).token
 
-    return PromptedTransformer(model, encoder, utterance, tokens, :(T))
+    return PromptedTransformer(model, encoder, embed, unembed, utterance, tokens, :(T))
 end
 
 "tokenizes the utterance, and returns a Vector of Residuals representing the embedding vectors"
 function embed(transformer, utterance)    
     tokens = encode(transformer.encoder, utterance).token
     labels = decode(transformer.encoder,tokens)
-    vectors = transformer.model.embed((; token=tokens))
+    vectors = transformer.embed((; token=tokens))
     expressions = map(x -> :(embed($x)), labels)
+    residuals = map(x -> 
+        HGFResidual(vectors.hidden_state[:,x],
+            expressions[x], 
+            labels[x]), 
+        1:length(labels))
+    return residuals
+end
+
+
+
+function ket(s::AbstractString)
+    return "<" * s * "|"
+end
+
+"tokenizes the utterance, and returns a Vector of Residuals which map output residuals to logits"
+function unembed(transformer, utterance)    
+    tokens = encode(transformer.encoder, utterance).token
+    labels =  ket.(decode(transformer.encoder,tokens))
+    vectors = transformer.unembed((; hidden_state=tokens))
+    expressions = map(x -> :(unembed($x)), labels)
     residuals = map(x -> 
         HGFResidual(vectors.hidden_state[:,x],
             expressions[x], 
@@ -62,13 +89,14 @@ function Base.:(*)(T::PromptedTransformer, r:: HGFResidual)
     
     #In this case we want to pass in an arbitrary residual vector, so we should bypass the embedding layer
     input = (; token=T.tokens)
-    residuals = T.model.embed(input)
+    residuals = T.embed(input)
     hidden_state = hcat(residuals.hidden_state, r.vector)
     y = T.model.decoder((; hidden_state=hidden_state))
     return HGFResidual(y.hidden_state, :((T.expression) * (r.expression)), string("T ", r.label))
 end
 
-function unembeds(T::PromptedTransformer,i)
+function logits(T::PromptedTransformer,r:: HGFResidual)
+    logits = T.unembed((; hidden_state=[r.vector]))
     return T.model.cls.layer.embed.embeddings[:,i]
 end
 end
