@@ -4,7 +4,7 @@ using Transformers.TextEncoders
 using Transformers.HuggingFace
 using SymbolicTransformer
 
-export PromptedTransformer, HGFResidual, prompt, embed
+export PromptedTransformer, HGFResidual, prompt, embed, unembed
 
 "Wraps a transformer and encoder with a prompt"
 struct PromptedTransformer <: SymbolicTransformer.Operation
@@ -71,13 +71,15 @@ end
 "tokenizes the utterance, and returns a Vector of Residuals which map output residuals to logits"
 function unembed(transformer, utterance)    
     tokens = encode(transformer.encoder, utterance).token
-    labels =  ket.(decode(transformer.encoder,tokens))
-    vectors = transformer.unembed((; hidden_state=tokens))
+    labels =  decode(transformer.encoder,tokens)
+    tokenids = reinterpret(Int32, tokens)
+    output_vectors = transformer.unembed.layer.embed.embeddings[:,tokenids]
+    
     expressions = map(x -> :(unembed($x)), labels)
     residuals = map(x -> 
-        HGFResidual(vectors.hidden_state[:,x],
+        HGFResidual(output_vectors[:,x],
             expressions[x], 
-            labels[x]), 
+            ket(labels[x])), 
         1:length(labels))
     return residuals
 end
@@ -97,6 +99,7 @@ end
 
 function logits(T::PromptedTransformer,r:: HGFResidual)
     logits = T.unembed((; hidden_state=[r.vector]))
+    
     return T.model.cls.layer.embed.embeddings[:,i]
 end
 end
