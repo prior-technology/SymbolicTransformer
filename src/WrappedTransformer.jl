@@ -4,7 +4,7 @@ using Transformers.TextEncoders
 using Transformers.HuggingFace
 using SymbolicTransformer
 
-export PromptedTransformer, HGFResidual, prompt, embed, unembed
+export PromptedTransformer, HGFResidual, prompt, embed, unembed, logits
 
 "Wraps a transformer and encoder with a prompt"
 struct PromptedTransformer <: SymbolicTransformer.Operation
@@ -98,8 +98,8 @@ function Base.:(*)(T::PromptedTransformer, r:: HGFResidual)
 end
 
 function logits(T::PromptedTransformer,r:: HGFResidual)
-    logits = T.unembed((; hidden_state=[r.vector]))
+    (vector, l) = T.unembed((; hidden_state=r.vector))
     
-    return T.model.cls.layer.embed.embeddings[:,i]
+    return l[:,1]
 end
 end

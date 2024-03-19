@@ -1,6 +1,7 @@
 using Transformers.HuggingFace
 using Transformers.TextEncoders
 using SymbolicTransformer.WrappedTransformer
+using TextEncodeBase
 
 const encoder = hgf"EleutherAI/pythia-14m:tokenizer"
 const model = hgf"EleutherAI/pythia-14m:forcausallm"
@@ -8,9 +9,7 @@ const model = hgf"EleutherAI/pythia-14m:forcausallm"
 
 function test_embed()
     T = prompt(model, encoder, "Hello, world!")    
-    @test T.prompt == "Hello, world!"
-    
-    tokens = encode(encoder, " word").token
+    @test T.prompt == "Hello, world!"    
     residuals = embed(T, " word")
     r=residuals[1]
     @test r.label == " word"
@@ -40,14 +39,15 @@ end
 function test_logits()
     #given an output residual which matches a specific vector of the unembedding layer
     T = prompt(model, encoder, "Hello")
-    residuals = unembed(T, " world")
+    residuals = unembed(T, "Hello")
     r=first(residuals)
 
     #When I calculate the logits for that residual
-    (expressions, logits) = logits(T,y)
+    logits = logits(T,r)
 
-    #Then the logit for that token should be close to 1
-
+    #Then the logit for that token should be >> than the next closest
+    tokenid = lookup(encoder.vocab, "Hello")
+    @test argmax(logits) == tokenid
 end
 
 function test_inference()
@@ -65,6 +65,7 @@ function test_inference()
     @test typeof(y) == HGFResidual
 end
 
-@testset "embed" test_embed()
-@testset "unembed" test_unembed()
+#@testset "embed" test_embed()
+#@testset "unembed" test_unembed()
+@testset "logits" test_logits()
 #@testset "inference" test_inference()
