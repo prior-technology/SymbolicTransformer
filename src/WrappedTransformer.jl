@@ -34,6 +34,14 @@ struct HGFResidual <:  SymbolicTransformer.Residual
     label
 end
 
+struct Prediction <: SymbolicTransformer.Prediction
+    
+    logit
+    normalization_constant
+    probability
+    expression
+    label
+end
 
 "tokenizes the utterance, and returns an operation"
 function prompt(causal_lm_model::Transformers.HuggingFace.HGFGPTNeoXForCausalLM,
@@ -84,6 +92,10 @@ function unembed(transformer, utterance)
     return residuals
 end
 
+function unembed_residuals(transformer)
+    expressions = map(x -> :(unembed($x)), labels)
+end
+
 "applies the model to the token"
 function Base.:(*)(T::PromptedTransformer, r:: HGFResidual)
     #To transform a new token at the end of a batch of tokens, we would push! the index of the 
@@ -97,9 +109,25 @@ function Base.:(*)(T::PromptedTransformer, r:: HGFResidual)
     return HGFResidual(y.hidden_state, :((T.expression) * (r.expression)), string("T ", r.label))
 end
 
-function logits(T::PromptedTransformer,r:: HGFResidual)
-    (vector, l) = T.unembed((; hidden_state=r.vector))
+function normalization_constant(logits)
+    return sum(exp.(logits))
+end
+function predictions(T::PromptedTransformer,r:: HGFResidual)
+    "Accepts a residual which represents output from the last position in the last block of a transformer, and returns 
+    predictions for the next token. The returned predictions encapsulate the logit, normalized probability, and an expression 
+    which traces the tokens involved in the prediction"
+    (_, logits) = T.unembed((; hidden_state=r.vector))
+    nc = normalization_constant(logits)
     
-    return l[:,1]
+    for token_id in enumerate(logits)
+        logit = logits[token_id]
+        probability = exp(logit) / nc
+        unembed_token = decode(T.encoder, token_id)
+        expression = :(logit($token_id[1]))
+        label = ket(decode(T.encoder, token_id[1]))
+        yield(Prediction(logit, nc, probability, expression, label))
+        
+    end
+    
 end
 end

@@ -43,11 +43,11 @@ function test_logits()
     r=first(residuals)
 
     #When I calculate the logits for that residual
-    logits = logits(T,r)
+    l = logits(T,r)
 
     #Then the logit for that token should be >> than the next closest
     tokenid = lookup(encoder.vocab, "Hello")
-    @test argmax(logits) == tokenid
+    @test argmax(l) == tokenid
 end
 
 function test_inference()
@@ -57,9 +57,8 @@ function test_inference()
     r=residuals[1]
     y = T * r
 
-    (expressions, logits) = logits(T,y)
-    expression_id = argmax(logits)
-    expression = expressions(argmax(logits))
+    (expressions, l) = logits(T,y)    
+    expression = expressions[argmax(l)]
     
     @test expression == " 5"
     @test typeof(y) == HGFResidual
@@ -68,4 +67,4 @@ end
 #@testset "embed" test_embed()
 #@testset "unembed" test_unembed()
 @testset "logits" test_logits()
-#@testset "inference" test_inference()
+@testset "inference" test_inference()
