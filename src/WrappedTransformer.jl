@@ -4,7 +4,7 @@ using Transformers.TextEncoders
 using Transformers.HuggingFace
 using SymbolicTransformer
 
-export PromptedTransformer, HGFResidual, prompt, embed, unembed, logits
+export PromptedTransformer, HGFResidual, prompt, embed, unembed, predict
 
 "Wraps a transformer and encoder with a prompt"
 struct PromptedTransformer <: SymbolicTransformer.Operation
@@ -77,7 +77,7 @@ function ket(s::AbstractString)
 end
 
 "tokenizes the utterance, and returns a Vector of Residuals which map output residuals to logits"
-function unembed(transformer, utterance)    
+function unembed(transformer, utterance::AbstractString)    
     tokens = encode(transformer.encoder, utterance).token
     labels =  decode(transformer.encoder,tokens)
     tokenids = reinterpret(Int32, tokens)
@@ -87,13 +87,14 @@ function unembed(transformer, utterance)
     residuals = map(x -> 
         HGFResidual(output_vectors[:,x],
             expressions[x], 
-            ket(labels[x])), 
+            labels[x]), 
         1:length(labels))
     return residuals
 end
 
-function unembed_residuals(transformer)
-    expressions = map(x -> :(unembed($x)), labels)
+function unembed(transformer, token_id::Integer)
+    token_string = decode(transformer.encoder, token_id)
+    return HGFResidual(transformer.unembed.layer.embed.embeddings[:,token_id], :(unembed($token_string)), token_string) 
 end
 
 "applies the model to the token"
@@ -112,22 +113,24 @@ end
 function normalization_constant(logits)
     return sum(exp.(logits))
 end
-function predictions(T::PromptedTransformer,r:: HGFResidual)
+
+function predict(T::PromptedTransformer,r:: HGFResidual)
     "Accepts a residual which represents output from the last position in the last block of a transformer, and returns 
     predictions for the next token. The returned predictions encapsulate the logit, normalized probability, and an expression 
     which traces the tokens involved in the prediction"
     (_, logits) = T.unembed((; hidden_state=r.vector))
     nc = normalization_constant(logits)
     
-    for token_id in enumerate(logits)
-        logit = logits[token_id]
-        probability = exp(logit) / nc
-        unembed_token = decode(T.encoder, token_id)
-        expression = :(logit($token_id[1]))
-        label = ket(decode(T.encoder, token_id[1]))
-        yield(Prediction(logit, nc, probability, expression, label))
-        
-    end
+    [
+        begin
+            probability = exp(logit) / nc
+            unembed_residual = unembed(T, token_id)        
+            expression = :($unembed_residual.expression ⋅ $r.expression)
+            label = unembed_residual.label
+            Prediction(logit, nc, probability, expression, label)
+        end
+        for (token_id, logit) in enumerate(logits)
+    ]
     
 end
 end

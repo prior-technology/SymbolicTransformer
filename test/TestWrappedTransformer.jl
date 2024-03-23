@@ -30,7 +30,7 @@ function test_unembed()
 
     #then
     @test r.vector == output_vector
-    @test r.label == "< world|"
+    @test r.label == " world"
     @test typeof(r.vector) == Vector{Float32}
     @test r.expression == :(unembed(" world"))
 
@@ -43,11 +43,11 @@ function test_logits()
     r=first(residuals)
 
     #When I calculate the logits for that residual
-    l = logits(T,r)
+    predictions = predict(T,r)
 
-    #Then the logit for that token should be >> than the next closest
-    tokenid = lookup(encoder.vocab, "Hello")
-    @test argmax(l) == tokenid
+    #Then the logit for that token should be >> than the next closest    
+    tokenid = argmax(map(p -> p.logit, predictions))
+    @test predictions[tokenid].label == "Hello"
 end
 
 function test_inference()
@@ -57,10 +57,11 @@ function test_inference()
     r=residuals[1]
     y = T * r
 
-    (expressions, l) = logits(T,y)    
-    expression = expressions[argmax(l)]
+    predictions = predict(T,y)
+    tokenid = argmax(map(p -> p.logit, predictions))
+    p = predictions[tokenid]
     
-    @test expression == " 5"
+    @test p.label == " 5"
     @test typeof(y) == HGFResidual
 end
 
