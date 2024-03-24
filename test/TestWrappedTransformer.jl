@@ -65,7 +65,7 @@ function test_inference()
     @test typeof(y) == HGFResidual
 end
 
-#@testset "embed" test_embed()
-#@testset "unembed" test_unembed()
+@testset "embed" test_embed()
+@testset "unembed" test_unembed()
 @testset "logits" test_logits()
 @testset "inference" test_inference()
