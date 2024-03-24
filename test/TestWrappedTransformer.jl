@@ -51,9 +51,9 @@ function test_logits()
 end
 
 function test_inference()
-    T = prompt(model, encoder, "1 2 3")    
+    T = prompt(model, encoder, "1, 2, 3, 4")     
 
-    residuals = embed(T, " 4")
+    residuals = embed(T, ",")
     r=residuals[1]
     y = T * r
 
