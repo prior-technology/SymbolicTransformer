@@ -1,3 +1,5 @@
+using SymbolicTransformer
+using Test
 using Transformers.HuggingFace
 using Transformers.TextEncoders
 using SymbolicTransformer.WrappedTransformer
@@ -51,18 +53,21 @@ function test_logits()
 end
 
 function test_inference()
+    #given a transformer prompted with a sequence of numbers
     T = prompt(model, encoder, "1, 2, 3, 4")     
 
+    #when the transformer operates on a residual of a token which continues the sequence
     residuals = embed(T, ",")
     r=residuals[1]
     y = T * r
-
-    predictions = predict(T,y)
-    tokenid = argmax(map(p -> p.logit, predictions))
-    p = predictions[tokenid]
-    
-    @test p.label == " 5"
     @test typeof(y) == HGFResidual
+    predictions = predict(T,y)
+    p = first(predictions)
+
+    #then the transformer should predict the next number in the sequence    
+    @test p.label == " 5"
+    @test p.probability > 0.25
+    @test p.expression == :(unembed(" 5") ⋅ (T * embed(",")))
 end
 
 @testset "embed" test_embed()

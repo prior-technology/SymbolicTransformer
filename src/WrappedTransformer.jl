@@ -157,7 +157,7 @@ function predict(T::PromptedTransformer,r:: HGFResidual)
     shift_logits = logits .- maxl
     nc = normalization_constant(shift_logits)
     
-    [
+    result = [
         begin
             probability = exp(logit-maxl) / nc
             unembed_residual = unembed(T, token_id)        
@@ -167,6 +167,8 @@ function predict(T::PromptedTransformer,r:: HGFResidual)
         end
         for (token_id, logit) in enumerate(logits)
     ]
+    #reorder by decreasing logit value
+    return sort!(result; by = x -> x.logit, rev=true, dims=1)
     
 end
 
