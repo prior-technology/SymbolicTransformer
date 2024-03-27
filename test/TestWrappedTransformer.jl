@@ -68,6 +68,11 @@ function test_inference()
     @test p.label == " 5"
     @test p.probability > 0.25
     @test p.expression == :(unembed(" 5") ⋅ (T * embed(",")))
+
+    #and the logit should match the equivalent when using transformers.jl directly
+    tjlInput = encode(encoder, "1, 2, 3, 4,")
+    tjlOutput = model(tjlInput)
+    @test p.logit ≈ tjlOutput.logit[p.token_id,end,1] #token_id from vocab, end of sequence, batch 1
 end
 
 @testset "embed" test_embed()

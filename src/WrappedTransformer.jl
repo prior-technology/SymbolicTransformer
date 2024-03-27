@@ -57,7 +57,7 @@ function show(io::IO, ::MIME"text/plain", r::HGFResidual)
     end
 end
 struct Prediction <: SymbolicTransformer.Prediction
-    
+    token_id
     logit
     normalization_constant
     max_logit
@@ -163,7 +163,7 @@ function predict(T::PromptedTransformer,r:: HGFResidual)
             unembed_residual = unembed(T, token_id)        
             expression = :($(unembed_residual.expression) ⋅ $(r.expression))
             label = unembed_residual.label
-            Prediction(logit, nc, maxl, probability, expression, label)
+            Prediction(token_id, logit, nc, maxl, probability, expression, label)
         end
         for (token_id, logit) in enumerate(logits)
     ]
