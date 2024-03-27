@@ -10,6 +10,7 @@ abstract type Residual end
 #     expression :: Expr
 #     label :: AbstractString
 # end
+abstract type Prediction end
 
 include("LayerNormalization.jl")
 include("VectorTransformer.jl")

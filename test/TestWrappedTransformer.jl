@@ -1,6 +1,9 @@
+using SymbolicTransformer
+using Test
 using Transformers.HuggingFace
 using Transformers.TextEncoders
 using SymbolicTransformer.WrappedTransformer
+using TextEncodeBase
 
 const encoder = hgf"EleutherAI/pythia-14m:tokenizer"
 const model = hgf"EleutherAI/pythia-14m:forcausallm"
@@ -8,9 +11,7 @@ const model = hgf"EleutherAI/pythia-14m:forcausallm"
 
 function test_embed()
     T = prompt(model, encoder, "Hello, world!")    
-    @test T.prompt == "Hello, world!"
-    
-    tokens = encode(encoder, " word").token
+    @test T.prompt == "Hello, world!"    
     residuals = embed(T, " word")
     r=residuals[1]
     @test r.label == " word"
@@ -31,7 +32,7 @@ function test_unembed()
 
     #then
     @test r.vector == output_vector
-    @test r.label == "< world|"
+    @test r.label == " world"
     @test typeof(r.vector) == Vector{Float32}
     @test r.expression == :(unembed(" world"))
 
@@ -40,31 +41,41 @@ end
 function test_logits()
     #given an output residual which matches a specific vector of the unembedding layer
     T = prompt(model, encoder, "Hello")
-    residuals = unembed(T, " world")
+    residuals = unembed(T, "Hello")
     r=first(residuals)
 
     #When I calculate the logits for that residual
-    (expressions, logits) = logits(T,y)
+    predictions = predict(T,r)
 
-    #Then the logit for that token should be close to 1
-
+    #Then the logit for that token should be >> than the next closest    
+    tokenid = argmax(map(p -> p.logit, predictions))
+    @test predictions[tokenid].label == "Hello"
 end
 
 function test_inference()
-    T = prompt(model, encoder, "1 2 3")    
+    #given a transformer prompted with a sequence of numbers
+    T = prompt(model, encoder, "1, 2, 3, 4")     
 
-    residuals = embed(T, " 4")
+    #when the transformer operates on a residual of a token which continues the sequence
+    residuals = embed(T, ",")
     r=residuals[1]
     y = T * r
-
-    (expressions, logits) = logits(T,y)
-    expression_id = argmax(logits)
-    expression = expressions(argmax(logits))
-    
-    @test expression == " 5"
     @test typeof(y) == HGFResidual
+    predictions = predict(T,y)
+    p = first(predictions)
+
+    #then the transformer should predict the next number in the sequence    
+    @test p.label == " 5"
+    @test p.probability > 0.25
+    @test p.expression == :(unembed(" 5") ⋅ (T * embed(",")))
+
+    #and the logit should match the equivalent when using transformers.jl directly
+    tjlInput = encode(encoder, "1, 2, 3, 4,")
+    tjlOutput = model(tjlInput)
+    @test p.logit ≈ tjlOutput.logit[p.token_id,end,1] #token_id from vocab, end of sequence, batch 1
 end
 
 @testset "embed" test_embed()
 @testset "unembed" test_unembed()
-#@testset "inference" test_inference()
+@testset "logits" test_logits()
+@testset "inference" test_inference()

@@ -3,8 +3,9 @@ using Transformers
 using Transformers.TextEncoders
 using Transformers.HuggingFace
 using SymbolicTransformer
+import Base.show
 
-export PromptedTransformer, HGFResidual, prompt, embed, unembed
+export PromptedTransformer, HGFResidual, prompt, embed, unembed, predict
 
 "Wraps a transformer and encoder with a prompt"
 struct PromptedTransformer <: SymbolicTransformer.Operation
@@ -23,6 +24,21 @@ struct PromptedTransformer <: SymbolicTransformer.Operation
     "Simple expression representing this Transformer"
     expression 
 end
+function show(io::IO, T::PromptedTransformer)
+    show(io, MIME("text/plain"), T)
+end
+function show(io::IO, ::MIME"text/plain", T::PromptedTransformer)
+    
+    if (get(io, :compact, false) == true)
+        print(io, "PromptedTransformer(\"$(T.prompt)\")")
+    else
+        #Display the model type, encoder type and prompt
+        #typeof(T.model) is quite complex, simplify it
+        model_type = split(string(typeof(T.model)), "{")[1]
+        encoder_type = split(string(typeof(T.encoder)), "{")[1]
+        print(io, "PromptedTransformer($model_type, $encoder_type, \"$(T.prompt)\")")        
+    end
+end
 
 "Represents a vector in the transformer's residual space"
 struct HGFResidual <:  SymbolicTransformer.Residual
@@ -33,7 +49,30 @@ struct HGFResidual <:  SymbolicTransformer.Residual
     "Label for printing"
     label
 end
-
+function show(io::IO, ::MIME"text/plain", r::HGFResidual)
+    if (get(io, :compact, false) == true)
+        print(io, r.expression)
+    else
+        print(io, "HGFResidual(\"$(r.label)\", $(r.expression))")
+    end
+end
+struct Prediction <: SymbolicTransformer.Prediction
+    token_id
+    logit
+    normalization_constant
+    max_logit
+    probability
+    expression
+    label
+end
+function show(io::IO, ::MIME"text/plain", p::SymbolicTransformer.Prediction)
+    probability = round(100*p.probability,digits=2)
+    if (get(io, :compact, false) == true)
+        print(io, "Prediction($probability% $(p.label)")
+    else
+        print(io, "Prediction($(round(100*p.probability,digits=2))% \"$(p.label)\", $(p.expression)")
+    end
+end
 
 "tokenizes the utterance, and returns an operation"
 function prompt(causal_lm_model::Transformers.HuggingFace.HGFGPTNeoXForCausalLM,
@@ -69,7 +108,7 @@ function ket(s::AbstractString)
 end
 
 "tokenizes the utterance, and returns a Vector of Residuals which map output residuals to logits"
-function unembed(transformer, utterance)    
+function unembed(transformer, utterance::AbstractString)    
     tokens = encode(transformer.encoder, utterance).token
     labels =  decode(transformer.encoder,tokens)
     tokenids = reinterpret(Int32, tokens)
@@ -79,9 +118,15 @@ function unembed(transformer, utterance)
     residuals = map(x -> 
         HGFResidual(output_vectors[:,x],
             expressions[x], 
-            ket(labels[x])), 
+            labels[x]), 
         1:length(labels))
     return residuals
+end
+
+function unembed(transformer, token_id::Integer)
+    token_string = decode(transformer.encoder, token_id)
+
+    return HGFResidual(transformer.unembed.layer.embed.embeddings[:,token_id], :(unembed($token_string)), token_string) 
 end
 
 "applies the model to the token"
@@ -89,17 +134,43 @@ function Base.:(*)(T::PromptedTransformer, r:: HGFResidual)
     #To transform a new token at the end of a batch of tokens, we would push! the index of the 
     #new token onto tokens.onehots, which applies a corresponding change to the tokens OneHotArray
     
-    #In this case we want to pass in an arbitrary residual vector, so we should bypass the embedding layer
+    #We pass in an arbitrary residual vector, so bypass the embedding layer
     input = (; token=T.tokens)
     residuals = T.embed(input)
     hidden_state = hcat(residuals.hidden_state, r.vector)
     y = T.model.decoder((; hidden_state=hidden_state))
-    return HGFResidual(y.hidden_state, :((T.expression) * (r.expression)), string("T ", r.label))
+    #take the residual in the last position
+    return HGFResidual(y.hidden_state[:,end], :($(T.expression) * $(r.expression)), string(T.prompt, r.label))
+    
 end
 
-function logits(T::PromptedTransformer,r:: HGFResidual)
-    logits = T.unembed((; hidden_state=[r.vector]))
-    
-    return T.model.cls.layer.embed.embeddings[:,i]
+function normalization_constant(logits)
+    return sum(exp.(logits))
 end
+
+function predict(T::PromptedTransformer,r:: HGFResidual)
+    "Accepts a residual which represents output from the last position in the last block of a transformer, and returns 
+    predictions for the next token. The returned predictions encapsulate the logit, normalized probability, and an expression 
+    which traces the tokens involved in the prediction"
+    (_, logits) = T.unembed((; hidden_state=r.vector))
+    maxl = maximum(logits)
+    shift_logits = logits .- maxl
+    nc = normalization_constant(shift_logits)
+    
+    result = [
+        begin
+            probability = exp(logit-maxl) / nc
+            unembed_residual = unembed(T, token_id)        
+            expression = :($(unembed_residual.expression) ⋅ $(r.expression))
+            label = unembed_residual.label
+            Prediction(token_id, logit, nc, maxl, probability, expression, label)
+        end
+        for (token_id, logit) in enumerate(logits)
+    ]
+    #reorder by decreasing logit value
+    return sort!(result; by = x -> x.logit, rev=true, dims=1)
+    
+end
+
+
 end
