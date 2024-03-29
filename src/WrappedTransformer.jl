@@ -150,11 +150,35 @@ function Base.:(*)(T::PromptedTransformer, r:: HGFResidual)
     return HGFResidual(y.hidden_state[:,end], :($(T.expression) * $(r.expression)), string(T.prompt, r.label))
     
 end
+function prompt_residuals(T::PromptedTransformer)
+    input = (; token=T.tokens)
+    return T.embed_layer(input)
+end
+
+function Base.:(*)(T::PromptedTransformer, target_residuals :: AbstractVector{HGFResidual})
+    #To transform a new token at the end of a batch of tokens, we would push! the index of the 
+    #new token onto tokens.onehots, which applies a corresponding change to the tokens OneHotArray
+    
+    #We pass in an arbitrary residual vector, so bypass the embedding layer for the input residuals
+    residuals = prompt_residuals(T)
+
+    new_residual_matrix = hcat([r.vector for r in target_residuals]...)
+    hidden_state = hcat(residuals.hidden_state, new_residual_matrix)
+
+    y = T.model.decoder((; hidden_state=hidden_state))
+    
+    #return output residuals in positions corresponding with the target residuals    
+    result_vectors = y.hidden_state[:,end-length(target_residuals)+1:end]
+    return [HGFResidual(result_vectors[:,i], :($(T.expression) * $(target_residuals[i].expression)), string(T.prompt, target_residuals[i].label)) for i in eachindex(target_residuals)]
+end
 
 function LinearAlgebra.dot(r1:: HGFResidual, r2:: HGFResidual)
     return HGFResidual(r1.vector .* r2.vector, :(r1.expression ⋅ r2.expression), """< "$(r1.label)" | "$(r2.label)" >""")
 end
 
+function LinearAlgebra.dot(v1:: Vector{HGFResidual}, v2:: Vector{HGFResidual})
+    return dot.(v1, v2)
+end
 function normalization_constant(logits)
     return sum(exp.(logits))
 end
