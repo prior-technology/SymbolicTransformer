@@ -83,6 +83,9 @@ julia> predictions = predict(T,y)
 
 trying to have the expression from predict be re-runnable. The expression is now like `:(unembed(" 5") ⋅ (T * embed(","))` but that is not runnable, embed/unembed required T 
 as an argument, the ⋅ operation wasn't defined for HGFResidual, and it assumes the transformer is named T. I've added embed/unembed methods that use a global from
-the WrappedTransformer module to use the most recently defined PromptedTransformer, but there is still work to be done around values passed as vectors or not.
+the WrappedTransformer module to use the most recently defined PromptedTransformer. 
+
+The string passed into embed and unembed may be tokenized into multiple vectors. For now these functions return Vector{HGFResidual}, rather than a single HGFResidual containing a vector with multiple columns. The dot product currently fails because both are returned as column-vectors. unembed should store a row vector instead.
+
 
 [![Build Status](https://github.com/prior-technology/SymbolicTransformer/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/prior-technology/SymbolicTransformer/actions/workflows/CI.yml?query=branch%3Amain)

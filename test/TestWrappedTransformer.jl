@@ -73,6 +73,10 @@ function test_inference()
     tjlInput = encode(encoder, "1, 2, 3, 4,")
     tjlOutput = model(tjlInput)
     @test p.logit ≈ tjlOutput.logit[p.token_id,end,1] #token_id from vocab, end of sequence, batch 1
+
+    #and the logit should match the result of it's own expression
+    # inner_product = first((unembed(" 5") ⋅ (T * embed(","))))
+    # @test p.logit ≈ inner_product.vector[1]
 end
 
 @testset "embed" test_embed()
