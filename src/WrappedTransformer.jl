@@ -92,6 +92,13 @@ function prompt(causal_lm_model::Transformers.HuggingFace.HGFGPTNeoXForCausalLM,
     return current_transformer
 end
 
+function bra(s::AbstractString)
+    return "⟨ $s |"
+end
+function ket(s::AbstractString)
+    return "| $s ⟩"
+end
+
 "tokenizes the utterance, and returns a Vector of Residuals representing the embedding vectors"
 function embed(transformer, utterance)    
     tokens = encode(transformer.encoder, utterance).token
@@ -119,7 +126,7 @@ function unembed(transformer, utterance::AbstractString)
     
     expressions = map(x -> :(unembed($x)), labels)
     residuals = map(x -> 
-        HGFResidual(output_vectors[:,x],
+        HGFResidual(adjoint(output_vectors[:,x]),
             expressions[x], 
             labels[x]), 
         1:length(labels))
@@ -173,7 +180,15 @@ function Base.:(*)(T::PromptedTransformer, target_residuals :: AbstractVector{HG
 end
 
 function LinearAlgebra.dot(r1:: HGFResidual, r2:: HGFResidual)
-    return HGFResidual(r1.vector .* r2.vector, :(r1.expression ⋅ r2.expression), """< "$(r1.label)" | "$(r2.label)" >""")
+    return HGFResidual(LinearAlgebra.dot(r1.vector,r2.vector), :(r1.expression ⋅ r2.expression), """< "$(r1.label)" | "$(r2.label)" >""")
+end
+
+function LinearAlgebra.transpose(r:: HGFResidual)
+    return HGFResidual(transpose(r.vector), :(transpose($(r.expression))), """ transpose($(r.label)) """)
+end
+
+function LinearAlgebra.adjoint(r:: HGFResidual)
+    return HGFResidual(adjoint(r.vector), :(($(r.expression))'), """ ($(r.label))' """)
 end
 
 function LinearAlgebra.dot(v1:: Vector{HGFResidual}, v2:: Vector{HGFResidual})
