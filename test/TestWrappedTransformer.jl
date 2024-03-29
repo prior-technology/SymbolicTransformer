@@ -4,6 +4,7 @@ using Transformers.HuggingFace
 using Transformers.TextEncoders
 using SymbolicTransformer.WrappedTransformer
 using TextEncodeBase
+using LinearAlgebra
 
 const encoder = hgf"EleutherAI/pythia-14m:tokenizer"
 const model = hgf"EleutherAI/pythia-14m:forcausallm"
@@ -24,16 +25,15 @@ function test_unembed()
     T = prompt(model, encoder, "Hello,")    
     tokens = encode(encoder, " world").token
     token_ids = first(reinterpret(Int32, tokens))    
-    output_vector = T.unembed.layer.embed.embeddings[:,token_ids[1]]
+    output_vector = T.unembed_layer.layer.embed.embeddings[:,token_ids[1]]
     
     #when
     residuals = unembed(T, " world")
     r=first(residuals)
 
     #then
-    @test r.vector == output_vector
+    @test r.vector == adjoint(output_vector)
     @test r.label == " world"
-    @test typeof(r.vector) == Vector{Float32}
     @test r.expression == :(unembed(" world"))
 
 end
@@ -42,7 +42,7 @@ function test_logits()
     #given an output residual which matches a specific vector of the unembedding layer
     T = prompt(model, encoder, "Hello")
     residuals = unembed(T, "Hello")
-    r=first(residuals)
+    r=transpose(first(residuals))
 
     #When I calculate the logits for that residual
     predictions = predict(T,r)
@@ -75,8 +75,8 @@ function test_inference()
     @test p.logit ≈ tjlOutput.logit[p.token_id,end,1] #token_id from vocab, end of sequence, batch 1
 
     #and the logit should match the result of it's own expression
-    # inner_product = first((unembed(" 5") ⋅ (T * embed(","))))
-    # @test p.logit ≈ inner_product.vector[1]
+    inner_product = first((unembed(" 5") ⋅ (T * embed(","))))
+    @test p.logit ≈ inner_product.vector[1]
 end
 
 @testset "embed" test_embed()
