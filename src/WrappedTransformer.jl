@@ -78,6 +78,12 @@ function show(io::IO, ::MIME"text/plain", p::SymbolicTransformer.Prediction)
     end
 end
 
+struct HGFTransformerBlock <: SymbolicTransformer.Operation
+    "One block of a Transformers.jl Huggingface transformer"
+    
+    expression
+end
+
 "tokenizes the utterance, and returns an operation"
 function prompt(causal_lm_model::Transformers.HuggingFace.HGFGPTNeoXForCausalLM,
         encoder,
@@ -221,6 +227,34 @@ function predict(T::PromptedTransformer,r:: HGFResidual)
     return sort!(result; by = x -> x.logit, rev=true, dims=1)
     
 end
+function wrap(ln::Transformers.Layers.LayerNorm)
+    return :(LN)
 
+end
+function wrap(transformer_blocks::Transformers.Layers.Transformer)
+    #the operations within transformer operator are composed
+    #so return an expression with each operation seperated by the composition operator ∘
+    return reduce((x,y) -> :( $x ∘ $y), transformer_blocks.blocks)
+    
+end
+
+function extract_blocks(chain::Transformers.Layers.Chain)
+    #the operations within chain operator are composed
+    #so return an expression with each operation seperated by the composition operator ∘
+    operations = chain.layers
+    return reduce((x,y) -> :( $x ∘ $y), operations)
+
+end
+function extract_blocks(model::Transformers.HuggingFace.HGFGPTNeoXModel)
+    return extract_blocks(model.decoder)
+end
+
+function extract_blocks(model::Transformers.HuggingFace.HGFGPTNeoXForCausalLM)    
+    return extract_blocks(model.model)
+end
+function expand(T::PromptedTransformer)
+    "Replace T with the blocks of the transformer"
+    blocks = T.model
+end
 
 end

@@ -60,7 +60,15 @@ I'm aiming to see the flow through using Transformers.jl with Pythia/GPTNeo-X mo
 
 `predict` is a function which runs the model and calculates logits and probabilities for all tokens, returning each as a HGFResidual which includes an expression which should perform a similar calculation (returning only logits since probabilities depends on all logits for other tokens)
 
-```julia
+`embed` tokenizes the supplied string and returns a Vector of HGFResidual based on the corresponding entries in the embedding matrix of the transformer. If a transformer is 
+not specified the last one defined is used.
+
+`unembed` tokenizes the supplied string and returns a Vector of HGFResidual based on the corresponding entries in the output embedding matrix of the transformer. These are stored as row-vectors in a vector of HGFResidual . 
+
+
+
+```julia-repl
+
 julia> T = prompt(model, encoder, "1, 2, 3, 4")
 PromptedTransformer(Transformers.HuggingFace.HGFGPTNeoXModel, GPT2TextEncoder, "1, 2, 3, 4")
 
@@ -78,14 +86,13 @@ julia> predictions = predict(T,y)
  Prediction(6.37% " 6", unembed(" 6") ⋅ (T * embed(","))
 
 ```
+## Expressions
+
+Many of the types added include an expression which shows how that result was calculated. Expressions like  `(unembed(" 5") ⋅ (T * embed(","))` are runnable but depend on having a PromptedTransformer named T, and the embed/unembed variables refer to this from a global variable which tracks the most recently defined PromptedTransformer.
 
 ## Current task
 
-trying to have the expression from predict be re-runnable. The expression is now like `:(unembed(" 5") ⋅ (T * embed(","))` but that is not runnable, embed/unembed required T 
-as an argument, the ⋅ operation wasn't defined for HGFResidual, and it assumes the transformer is named T. I've added embed/unembed methods that use a global from
-the WrappedTransformer module to use the most recently defined PromptedTransformer. 
-
-The string passed into embed and unembed may be tokenized into multiple vectors. For now these functions return Vector{HGFResidual}, rather than a single HGFResidual containing a vector with multiple columns. The dot product currently fails because both are returned as column-vectors. unembed should store a row vector instead.
+Add an expand function or rule which replaces transformer with the blocks it contains.
 
 
 [![Build Status](https://github.com/prior-technology/SymbolicTransformer/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/prior-technology/SymbolicTransformer/actions/workflows/CI.yml?query=branch%3Amain)
