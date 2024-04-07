@@ -1,12 +1,13 @@
 module WrappedTransformer
 using Transformers
+using Transformers.Layers
 using Transformers.TextEncoders
 using Transformers.HuggingFace
 using SymbolicTransformer
 using LinearAlgebra
 import Base.show
 
-export PromptedTransformer, HGFResidual, prompt, embed, unembed, predict, dot
+export PromptedTransformer, HGFResidual, prompt, embed, unembed, predict, dot, prompt_residuals, extract_blocks, expand
 
 "Wraps a transformer and encoder with a prompt"
 struct PromptedTransformer <: SymbolicTransformer.Operation
@@ -42,6 +43,13 @@ function show(io::IO, ::MIME"text/plain", T::PromptedTransformer)
         encoder_type = split(string(typeof(T.encoder)), "{")[1]
         print(io, "PromptedTransformer($model_type, $encoder_type, \"$(T.prompt)\")")        
     end
+end
+
+struct PromptedTransformerBlock <: SymbolicTransformer.Operation
+    "One block of a Transformers.jl Huggingface transformer"
+    block
+    prompt_residuals
+    expression
 end
 
 "Represents a vector in the transformer's residual space"
@@ -149,36 +157,49 @@ function unembed(transformer, token_id::Integer)
     return HGFResidual(transformer.unembed_layer.layer.embed.embeddings[:,token_id], :(unembed($token_string)), token_string) 
 end
 
-"applies the model to the token"
-function Base.:(*)(T::PromptedTransformer, r:: HGFResidual)
-    #To transform a new token at the end of a batch of tokens, we would push! the index of the 
-    #new token onto tokens.onehots, which applies a corresponding change to the tokens OneHotArray
-    
-    #We pass in an arbitrary residual vector, so bypass the embedding layer
-    input = (; token=T.tokens)
-    residuals = T.embed_layer(input)
-    hidden_state = hcat(residuals.hidden_state, r.vector)
-    y = T.model.decoder((; hidden_state=hidden_state))
-    #take the residual in the last position
-    return HGFResidual(y.hidden_state[:,end], :($(T.expression) * $(r.expression)), string(T.prompt, r.label))
-    
+
+function Base.:(+)(r1:: HGFResidual, r2:: HGFResidual)
+    return HGFResidual(r1.vector + r2.vector, :($(r1.expression) + $(r2.expression)), """$(r1.label) + $(r2.label)""")
 end
-function prompt_residuals(T::PromptedTransformer)
+
+function prompt_residuals(T::PromptedTransformer)        
+    #We pass in an arbitrary residual vector, so bypass the embedding layer
     input = (; token=T.tokens)
     return T.embed_layer(input)
 end
 
-function Base.:(*)(T::PromptedTransformer, target_residuals :: AbstractVector{HGFResidual})
+function apply(T::PromptedTransformer, hidden_state)
+    T.model.decoder((; hidden_state=hidden_state))
+end
+function apply(B::PromptedTransformerBlock, hidden_state)
+    B((; hidden_state=hidden_state))
+end
+
+function append_hidden_state(hidden_state, r::HGFResidual)
+    return hcat(hidden_state, r.vector)
+end
+function append_hidden_state(hidden_state, target_residuals:: AbstractVector{HGFResidual})
+    
+    new_residual_matrix = hcat([r.vector for r in target_residuals]...)
+    hcat(hidden_state, new_residual_matrix)
+end
+"applies the model to the token"
+function Base.:(*)(T::SymbolicTransformer.Operation, r:: HGFResidual)
     #To transform a new token at the end of a batch of tokens, we would push! the index of the 
     #new token onto tokens.onehots, which applies a corresponding change to the tokens OneHotArray
-    
-    #We pass in an arbitrary residual vector, so bypass the embedding layer for the input residuals
+
     residuals = prompt_residuals(T)
+    hidden_state = append_hidden_state(residuals.hidden_state, r)
+    y = apply(T,hidden_state)
+    #take the residual in the last position
+    return HGFResidual(y.hidden_state[:,end], :($(T.expression) * $(r.expression)), string(T.prompt, r.label))
+    
+end
+function Base.:(*)(T::SymbolicTransformer.Operation, target_residuals :: AbstractVector{HGFResidual})
 
-    new_residual_matrix = hcat([r.vector for r in target_residuals]...)
-    hidden_state = hcat(residuals.hidden_state, new_residual_matrix)
-
-    y = T.model.decoder((; hidden_state=hidden_state))
+    residuals = prompt_residuals(T)
+    hidden_state = append_hidden_state(residuals.hidden_state, target_residuals)
+    y = apply(T,hidden_state)
     
     #return output residuals in positions corresponding with the target residuals    
     result_vectors = y.hidden_state[:,end-length(target_residuals)+1:end]
@@ -186,7 +207,7 @@ function Base.:(*)(T::PromptedTransformer, target_residuals :: AbstractVector{HG
 end
 
 function LinearAlgebra.dot(r1:: HGFResidual, r2:: HGFResidual)
-    return HGFResidual(LinearAlgebra.dot(r1.vector,r2.vector), :(r1.expression ⋅ r2.expression), """< "$(r1.label)" | "$(r2.label)" >""")
+    return HGFResidual(LinearAlgebra.dot(r1.vector,r2.vector), :($(r1.expression) ⋅ $(r2.expression)), """< "$(r1.label)" | "$(r2.label)" >""")
 end
 
 function LinearAlgebra.transpose(r:: HGFResidual)
@@ -231,28 +252,51 @@ function wrap(ln::Transformers.Layers.LayerNorm)
     return :(LN)
 
 end
-function wrap(transformer_blocks::Transformers.Layers.Transformer)
+
+function promptBlock(block::Transformers.Layers.AbstractTransformerBlock, residuals::AbstractVector{HGFResidual})
+
+    #return PromptedTransformerBlock(block, residuals,:($block * $residuals))
+end
+function wrap(transformer_blocks::Transformers.Layers.Transformer, input_residuals::AbstractVector{HGFResidual})
     #the operations within transformer operator are composed
     #so return an expression with each operation seperated by the composition operator ∘
-    return reduce((x,y) -> :( $x ∘ $y), transformer_blocks.blocks)
+    return []
     
 end
 
-function extract_blocks(chain::Transformers.Layers.Chain)
-    #the operations within chain operator are composed
-    #so return an expression with each operation seperated by the composition operator ∘
-    operations = chain.layers
-    return reduce((x,y) -> :( $x ∘ $y), operations)
-
-end
-function extract_blocks(model::Transformers.HuggingFace.HGFGPTNeoXModel)
-    return extract_blocks(model.decoder)
+function prefix_block(block::Transformers.Layers.AbstractTransformerBlock, prefix_residuals)
+    "Return a PromptedTransformerBlock which includes prefix_residuals with the result of applying those residuals to the block"
+    promptedBlock = PromptedTransformerBlock(block, prefix_residuals, :($block * $prefix_residuals))
+    residuals = block(prefix_residuals) 
+    return (residuals, promptedBlock)
 end
 
-function extract_blocks(model::Transformers.HuggingFace.HGFGPTNeoXForCausalLM)    
-    return extract_blocks(model.model)
+function apply_blocks(blocks, prefix_residuals)
+    "Takes an iterable of Transformer blocks and an initial residual. Returns PromptedTransformerBlocks
+    where each includes residuals from applying the last prefix to the last transformer"
+    result = []
+    for block in blocks
+        (prefix_residuals, promptedBlock) = prefix_block(block, prefix_residuals)
+        push!(result, promptedBlock)
+    end
+    return result
 end
-function expand(T::PromptedTransformer)
+function extract_blocks(model::Transformers.HuggingFace.HGFGPTNeoXModel, prefix_residuals)
+    ln = model.decoder.layers[2]
+    transformer = model.decoder.layers[1]
+    return (ln = ln, blocks = apply_blocks(transformer.blocks, prefix_residuals))
+end
+
+function extract_blocks(model::Transformers.HuggingFace.HGFGPTNeoXForCausalLM, prefix_residuals)    
+    return extract_blocks(model.model, prefix_residuals)
+end
+
+function extract_blocks(T::PromptedTransformer)    
+    residuals = prompt_residuals(T)
+    return extract_blocks(T.model, residuals)
+end
+
+function expand(T::PromptedTransformer, r:: HGFResidual)
     "Replace T with the blocks of the transformer"
     blocks = T.model
 end

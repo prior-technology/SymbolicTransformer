@@ -92,7 +92,8 @@ Many of the types added include an expression which shows how that result was ca
 
 ## Current task
 
-Add an expand function or rule which replaces transformer with the blocks it contains.
+Add an expand function or rule which replaces transformer with the blocks it contains. This needs to be worked through in more detail.
+
 
 
 [![Build Status](https://github.com/prior-technology/SymbolicTransformer/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/prior-technology/SymbolicTransformer/actions/workflows/CI.yml?query=branch%3Amain)
