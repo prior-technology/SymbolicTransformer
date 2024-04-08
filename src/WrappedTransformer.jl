@@ -167,12 +167,14 @@ function prompt_residuals(T::PromptedTransformer)
     input = (; token=T.tokens)
     return T.embed_layer(input)
 end
-
+function prompt_residuals(B::PromptedTransformerBlock)        
+    return B.prompt_residuals
+end
 function apply(T::PromptedTransformer, hidden_state)
     T.model.decoder((; hidden_state=hidden_state))
 end
 function apply(B::PromptedTransformerBlock, hidden_state)
-    B((; hidden_state=hidden_state))
+    B.block((; hidden_state=hidden_state))
 end
 
 function append_hidden_state(hidden_state, r::HGFResidual)
@@ -183,6 +185,16 @@ function append_hidden_state(hidden_state, target_residuals:: AbstractVector{HGF
     new_residual_matrix = hcat([r.vector for r in target_residuals]...)
     hcat(hidden_state, new_residual_matrix)
 end
+
+function label(T::PromptedTransformer)
+    return T.prompt
+end
+function label(T::PromptedTransformerBlock)
+    return "B"
+end
+function label(r:: HGFResidual)
+    return r.label
+end
 "applies the model to the token"
 function Base.:(*)(T::SymbolicTransformer.Operation, r:: HGFResidual)
     #To transform a new token at the end of a batch of tokens, we would push! the index of the 
@@ -192,8 +204,7 @@ function Base.:(*)(T::SymbolicTransformer.Operation, r:: HGFResidual)
     hidden_state = append_hidden_state(residuals.hidden_state, r)
     y = apply(T,hidden_state)
     #take the residual in the last position
-    return HGFResidual(y.hidden_state[:,end], :($(T.expression) * $(r.expression)), string(T.prompt, r.label))
-    
+    return HGFResidual(y.hidden_state[:,end], :($(T.expression) * $(r.expression)), string(label(T), label(r)))
 end
 function Base.:(*)(T::SymbolicTransformer.Operation, target_residuals :: AbstractVector{HGFResidual})
 
@@ -203,7 +214,7 @@ function Base.:(*)(T::SymbolicTransformer.Operation, target_residuals :: Abstrac
     
     #return output residuals in positions corresponding with the target residuals    
     result_vectors = y.hidden_state[:,end-length(target_residuals)+1:end]
-    return [HGFResidual(result_vectors[:,i], :($(T.expression) * $(target_residuals[i].expression)), string(T.prompt, target_residuals[i].label)) for i in eachindex(target_residuals)]
+    return [HGFResidual(result_vectors[:,i], :($(T.expression) * $(target_residuals[i].expression)), string(label(T), label(target_residuals[i]))) for i in eachindex(target_residuals)]
 end
 
 function LinearAlgebra.dot(r1:: HGFResidual, r2:: HGFResidual)
