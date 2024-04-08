@@ -94,6 +94,13 @@ Many of the types added include an expression which shows how that result was ca
 
 Add an expand function or rule which replaces transformer with the blocks it contains. This needs to be worked through in more detail.
 
+### Splitting transformer into blocks
+
+The transformer is split into blocks. Currently the block operation includes summing with the residual. This should be changed to keep the sum seperate.
+
+### Splitting predictions
+
+It should be possible to calculate how much each layer and the original embedding contribute to confidence of a specific prediction. Within a block, split between attention and FF layers. And within attention layers which previous positions. 
 
 
 [![Build Status](https://github.com/prior-technology/SymbolicTransformer/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/prior-technology/SymbolicTransformer/actions/workflows/CI.yml?query=branch%3Amain)

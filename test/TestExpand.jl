@@ -51,16 +51,16 @@ function test_extract_blocks()
     @test prompt_blocks[1].prompt_residuals == prompt_residuals(T)
     #and ln(sum(prompt_block)) should be the same as the output of the model applied to the prompt residuals
     
-    residual_last = residual_out = residual_in = first(embed(T, ","))
+    this_block_residual = total_residual = first(embed(T, ","))
     
     for block in prompt_blocks
-        residual_last = block * residual_in
-        residual_out = residual_out + residual_last
+        total_residual = block * total_residual 
+        #total_residual  = total_residual + this_block_residual
     end
-    result = ln(residual_out.vector)
-    result2 = ln(residual_last.vector)
+    result = ln(total_residual.vector)
+ 
     expected = first(T * embed(T, ","))
-    @test result2 ≈ expected.vector
+    
     @test result ≈ expected.vector
     
 end
