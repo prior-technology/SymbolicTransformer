@@ -6,10 +6,10 @@ using SymbolicTransformer.WrappedTransformer
 using TextEncodeBase
 using LinearAlgebra
 
-const encoder = hgf"EleutherAI/pythia-14m:tokenizer"
-const model = hgf"EleutherAI/pythia-14m:forcausallm"
 
 function test_expand_residual()
+    (model, encoder) = TestData.get_both()
+
     #given an output residual from applying a prompted transformer to a residual
     T = prompt(model, encoder, "1, 2, 3, 4")
     input = embed(T, ",")
@@ -24,6 +24,8 @@ function test_expand_residual()
 end
 
 function test_expand_expression()
+    (model, encoder) = TestData.get_both()
+
     #given an expression which applies a prompted transformer to a residual
     T = prompt(model, encoder, "1, 2, 3, 4")
     input = embed(T, ",")
@@ -41,6 +43,8 @@ function test_expand_expression()
 end
 
 function test_extract_blocks()
+    (model, encoder) = TestData.get_both()
+
     #given a PromptedTransformer
     T = prompt(model, encoder, "1, 2, 3, 4")
 
