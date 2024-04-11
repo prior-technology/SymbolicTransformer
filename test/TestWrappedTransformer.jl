@@ -6,11 +6,10 @@ using SymbolicTransformer.WrappedTransformer
 using TextEncodeBase
 using LinearAlgebra
 
-const encoder = hgf"EleutherAI/pythia-14m:tokenizer"
-const model = hgf"EleutherAI/pythia-14m:forcausallm"
-
 
 function test_embed()
+    (model, encoder) = TestData.get_both()
+    
     T = prompt(model, encoder, "Hello, world!")    
     @test T.prompt == "Hello, world!"    
     residuals = embed(T, " word")
@@ -21,6 +20,8 @@ function test_embed()
 end
 
 function test_unembed()
+    (model, encoder) = TestData.get_both()
+
     #given
     T = prompt(model, encoder, "Hello,")    
     tokens = encode(encoder, " world").token
@@ -39,6 +40,8 @@ function test_unembed()
 end
 
 function test_logits()
+    (model, encoder) = TestData.get_both()
+
     #given an output residual which matches a specific vector of the unembedding layer
     T = prompt(model, encoder, "Hello")
     residuals = unembed(T, "Hello")
@@ -53,6 +56,8 @@ function test_logits()
 end
 
 function test_inference()
+    (model, encoder) = TestData.get_both()
+
     #given a transformer prompted with a sequence of numbers
     T = prompt(model, encoder, "1, 2, 3, 4")     
 
