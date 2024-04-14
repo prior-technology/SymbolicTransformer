@@ -297,7 +297,11 @@ function wrap(transformer_blocks::Transformers.Layers.Transformer, input_residua
     return []
 end
 
-"Return a PromptedTransformerBlock which includes prefix_residuals with the result of applying those residuals to the block"
+"""
+Return a PromptedTransformerBlock which includes prefix_residuals with the result of applying those residuals to the block
+
+Note that prefix_residuals is expected to be a NamedTuple with "hidden_state" referring to a matrix
+"""
 function prefix_block(block::Transformers.Layers.AbstractTransformerBlock, prefix_residuals)
    
     promptedBlock = PromptedTransformerBlock(block, prefix_residuals, :($block * $prefix_residuals))
