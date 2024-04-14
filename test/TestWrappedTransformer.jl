@@ -84,7 +84,68 @@ function test_inference()
     @test p.logit ≈ inner_product.vector[1]
 end
 
+function test_apply_transformer()
+    model = TestData.get_model()
+    #given a prompted transformer and residuals
+    T = prompt(model, TestData.get_encoder(), "1, 2, 3, 4")
+    residuals = prompt_residuals(T)
+    #when I apply the transformer to the residuals
+    result = WrappedTransformer.apply(T, residuals.hidden_state)
+    #then the result should be the same as using the model directly
+    expected = model((; token=T.tokens))
+    @test result.hidden_state == expected.hidden_state
+
+end
+function calculate_expected_delta(b, nt)
+    nt_a = Layers.apply_on_namedtuple(b.attention_norm, nt)
+    nt_f = Layers.apply_on_namedtuple(b.feedforward_norm, nt)
+    a = Layers.apply_on_namedtuple(b.attention, nt_a)
+    f = Layers.apply_on_namedtuple(b.feedforward, nt_f)
+    return a.hidden_state + f.hidden_state
+end
+function test_apply_block()
+    #given a PromptedTransformerBlock and residuals
+    (model, encoder) = TestData.get_both()
+    T = prompt(model, encoder, "1, 2, 3, 4")
+    prefix_residuals = prompt_residuals(T)
+    transformerBlock = model.model.decoder.layers[1][1]
+    promptedBlock = PromptedTransformerBlock(transformerBlock, prefix_residuals, :(test))
+    
+    #When I apply the block to the residuals
+    result = WrappedTransformer.apply(promptedBlock, residuals.hidden_state)
+
+    #Then the result should be the amount of change in hidden state expected from the block
+    expected = calculate_expected_delta(transformerBlock, residuals)
+    @test result.hidden_state ≈ expected
+end
+
+function test_apply()
+    test_apply_transformer()
+    test_apply_block()
+    
+end
+
+
+function test_prefix_block()
+    #given a block from a prompted transformer and residuals
+    (model, encoder) = TestData.get_both()
+    T = prompt(model, encoder, "1, 2, 3, 4")
+    transformerBlock = model.model.decoder.layers[1][1]
+    input_residuals = prompt_residuals(T)
+
+    #when I prefix the block with the residuals
+    (new_residuals, prompted_transformer_block) = WrappedTransformer.prefix_block(transformerBlock, residuals)
+
+    #then the resulting block should hold the input residuals
+    @test prompted_transformer_block.prompt_residuals == input_residuals
+    #and the resulting residuals should be the result of applying the block to the input
+    expected_residuals = transformerBlock(input_residuals)
+    @test new_residuals.hidden_state == expected_residuals.hidden_state
+end
+
 @testset "embed" test_embed()
 @testset "unembed" test_unembed()
 @testset "logits" test_logits()
 @testset "inference" test_inference()
+@testset "prefix_block" test_prefix_block()
+@testset "apply" test_apply()
