@@ -7,7 +7,7 @@ using SymbolicTransformer
 using LinearAlgebra
 import Base.show
 
-export PromptedTransformer, HGFResidual, prompt, embed, unembed, predict, dot, prompt_residuals, extract_blocks, expand
+export PromptedTransformer,PromptedTransformerBlock, HGFResidual, prompt, embed, unembed, predict, dot, prompt_residuals, extract_blocks, expand
 
 "Wraps a transformer and encoder with a prompt"
 struct PromptedTransformer <: SymbolicTransformer.Operation
@@ -162,19 +162,42 @@ function Base.:(+)(r1:: HGFResidual, r2:: HGFResidual)
     return HGFResidual(r1.vector + r2.vector, :($(r1.expression) + $(r2.expression)), """$(r1.label) + $(r2.label)""")
 end
 
-function prompt_residuals(T::PromptedTransformer)        
-    #We pass in an arbitrary residual vector, so bypass the embedding layer
+"""
+    Returns residual vectors associated with the prompt in an Operation
+"""
+function prompt_residuals
+end
+
+function prompt_residuals(T::PromptedTransformer)
+        #We pass in an arbitrary residual vector, so bypass the embedding layer
     input = (; token=T.tokens)
     return T.embed_layer(input)
 end
-function prompt_residuals(B::PromptedTransformerBlock)        
+
+function prompt_residuals(B::PromptedTransformerBlock)
     return B.prompt_residuals
+end
+
+"""
+    Applies the model to the hidden state. 
+    
+    This function was added so Base.:(*) doesn't depend on the type of operation
+"""
+function apply
 end
 function apply(T::PromptedTransformer, hidden_state)
     T.model.decoder((; hidden_state=hidden_state))
 end
+
 function apply(B::PromptedTransformerBlock, hidden_state)
-    B.block((; hidden_state=hidden_state))
+    #adjust to return contribution from this block without adding to the input
+    #@functor ParallelPreNorm2TransformerBlock in https://github.com/chengchingwen/Transformers.jl/blob/91a3fe00bad5bb9ebff35b61356c3d52ad3efba3/src/huggingface/implementation/gpt_neox/load.jl#L25C5-L25C69
+    #returns hidden_state = a.hidden_state + f.hidden_state + nt.hidden_state
+    #we just want (a.hidden_state + f.hidden_state) so deduct nt.hidden_state before returning
+    #TODO: write our own version of ParallelPreNorm2TransformerBlock to encapsulate this
+    result = B.block((; hidden_state=hidden_state))
+    block_contribution = result.hidden_state - hidden_state
+    return (; hidden_state=block_contribution)
 end
 
 function append_hidden_state(hidden_state, r::HGFResidual)
@@ -206,15 +229,15 @@ function Base.:(*)(T::SymbolicTransformer.Operation, r:: HGFResidual)
     #take the residual in the last position
     return HGFResidual(y.hidden_state[:,end], :($(T.expression) * $(r.expression)), string(label(T), label(r)))
 end
-function Base.:(*)(T::SymbolicTransformer.Operation, target_residuals :: AbstractVector{HGFResidual})
+function Base.:(*)(Op::SymbolicTransformer.Operation, target_residuals :: AbstractVector{HGFResidual})
 
-    residuals = prompt_residuals(T)
+    residuals = prompt_residuals(Op)
     hidden_state = append_hidden_state(residuals.hidden_state, target_residuals)
-    y = apply(T,hidden_state)
+    y = apply(Op,hidden_state)
     
     #return output residuals in positions corresponding with the target residuals    
     result_vectors = y.hidden_state[:,end-length(target_residuals)+1:end]
-    return [HGFResidual(result_vectors[:,i], :($(T.expression) * $(target_residuals[i].expression)), string(label(T), label(target_residuals[i]))) for i in eachindex(target_residuals)]
+    return [HGFResidual(result_vectors[:,i], :($(Op.expression) * $(target_residuals[i].expression)), string(label(Op), label(target_residuals[i]))) for i in eachindex(target_residuals)]
 end
 
 function LinearAlgebra.dot(r1:: HGFResidual, r2:: HGFResidual)
@@ -272,19 +295,19 @@ function wrap(transformer_blocks::Transformers.Layers.Transformer, input_residua
     #the operations within transformer operator are composed
     #so return an expression with each operation seperated by the composition operator ∘
     return []
-    
 end
 
+"Return a PromptedTransformerBlock which includes prefix_residuals with the result of applying those residuals to the block"
 function prefix_block(block::Transformers.Layers.AbstractTransformerBlock, prefix_residuals)
-    "Return a PromptedTransformerBlock which includes prefix_residuals with the result of applying those residuals to the block"
+   
     promptedBlock = PromptedTransformerBlock(block, prefix_residuals, :($block * $prefix_residuals))
     residuals = block(prefix_residuals) 
     return (residuals, promptedBlock)
 end
 
+"Takes an iterable of Transformer blocks and an initial residual. Returns PromptedTransformerBlocks
+where each includes residuals from applying the last prefix to the last transformer"
 function apply_blocks(blocks, prefix_residuals)
-    "Takes an iterable of Transformer blocks and an initial residual. Returns PromptedTransformerBlocks
-    where each includes residuals from applying the last prefix to the last transformer"
     result = []
     for block in blocks
         (prefix_residuals, promptedBlock) = prefix_block(block, prefix_residuals)
@@ -292,6 +315,7 @@ function apply_blocks(blocks, prefix_residuals)
     end
     return result
 end
+
 function extract_blocks(model::Transformers.HuggingFace.HGFGPTNeoXModel, prefix_residuals)
     ln = model.decoder.layers[2]
     transformer = model.decoder.layers[1]

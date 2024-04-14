@@ -58,8 +58,8 @@ function test_extract_blocks()
     this_block_residual = total_residual = first(embed(T, ","))
     
     for block in prompt_blocks
-        total_residual = block * total_residual 
-        #total_residual  = total_residual + this_block_residual
+        this_block_residual = block * total_residual 
+        total_residual  = total_residual + this_block_residual
     end
     result = ln(total_residual.vector)
  
