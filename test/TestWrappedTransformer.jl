@@ -52,7 +52,7 @@ function test_logits()
     predictions = predict(T,r)
 
     #Then the logit for that token should be >> than the next closest    
-    tokenid = argmax(map(p -> p.logit, predictions))
+    tokenid = argmax(map(p -> logit(p), predictions))
     @test predictions[tokenid].label == "Hello"
 end
 
@@ -72,17 +72,17 @@ function test_inference()
 
     #then the transformer should predict the next number in the sequence    
     @test p.label == " 5"
-    @test p.probability > 0.25
+    @test probability(p) > 0.25
     @test p.expression == :(unembed(" 5") ⋅ (T * embed(",")))
 
     #and the logit should match the equivalent when using transformers.jl directly
     tjlInput = encode(encoder, "1, 2, 3, 4,")
     tjlOutput = model(tjlInput)
-    @test p.logit ≈ tjlOutput.logit[p.token_id,end,1] #token_id from vocab, end of sequence, batch 1
+    @test logit(p) ≈ tjlOutput.logit[p.token_id,end,1] #token_id from vocab, end of sequence, batch 1
 
     #and the logit should match the result of it's own expression
     inner_product = first((unembed(" 5") ⋅ (T * embed(","))))
-    @test p.logit ≈ inner_product.vector[1]
+    @test logit(p) ≈ inner_product.vector[1]
 end
 
 function test_apply_transformer()
@@ -153,11 +153,12 @@ function test_split_prediction()
     token_id=1
     logit=3
     nc=WrappedTransformer.normalization_constant(shifted_logits)
-    
-    probability= WrappedTransformer.normalise_logit(logit,max_logit,nc)
+    residual = [HGFResidual([1, 2, 3, 4, 5, 6], :(test_unembed), "test_unembed")]
+    unembed = [HGFResidual([1, 2, 3, -1, -1, 1, -2], :(test_unembed), "test_unembed")]
+    #probability= WrappedTransformer.normalise_logit(logit,max_logit,nc)
     expression=:(test)
     label="Test"
-    target = Prediction(token_id, logit, nc, max_logit, probability, expression, label)
+    target = Prediction(unembed, logit, nc, max_logit, expression, label)
     
     #when I supply a vector of HGFResidual terms
     terms = [
