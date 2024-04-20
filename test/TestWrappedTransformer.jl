@@ -1,5 +1,6 @@
 using SymbolicTransformer
 using Test
+using Transformers
 using Transformers.HuggingFace
 using Transformers.TextEncoders
 using SymbolicTransformer.WrappedTransformer
@@ -112,10 +113,10 @@ function test_apply_block()
     promptedBlock = PromptedTransformerBlock(transformerBlock, prefix_residuals, :(test))
     
     #When I apply the block to the residuals
-    result = WrappedTransformer.apply(promptedBlock, residuals.hidden_state)
+    result = WrappedTransformer.apply(promptedBlock, prefix_residuals.hidden_state)
 
     #Then the result should be the amount of change in hidden state expected from the block
-    expected = calculate_expected_delta(transformerBlock, residuals)
+    expected = calculate_expected_delta(transformerBlock, prefix_residuals)
     @test result.hidden_state ≈ expected
 end
 
@@ -141,6 +142,38 @@ function test_prefix_block()
     #and the resulting residuals should be the result of applying the block to the input
     expected_residuals = transformerBlock(input_residuals)
     @test new_residuals.hidden_state == expected_residuals.hidden_state
+end
+
+function test_split_prediction()
+    #given a Prediction
+    #uses example https://en.wikipedia.org/w/index.php?title=Softmax_function&oldid=1218697397#Example
+    logits = [1, 2, 3, 4, 1, 2, 3]
+    max_logit = 4
+    shifted_logits = logits .- max_logit
+    token_id=1
+    logit=3
+    nc=WrappedTransformer.normalization_constant(shifted_logits)
+    
+    probability= WrappedTransformer.normalise_logit(logit,max_logit,nc)
+    expression=:(test)
+    label="Test"
+    target = Prediction(token_id, logit, nc, max_logit, probability, expression, label)
+    
+    #when I supply a vector of HGFResidual terms
+    terms = [
+        HGFResidual([1, 0, 0, 0, 0, 0, 0], :(test1), "Test1")
+        HGFResidual([0, 1, 0, 0, 0, 0, 0], :(test2), "Test2")
+    ]
+    (results, error) = expand(target, terms)
+
+
+    #then I get a vector of PredictionParts showing contribution percentage, along with an error term
+    @test length(results) == 2
+    @test results[1].contribution ≈ 0.0320586
+    @test results[2].contribution ≈ 0.9679414
+    @test error ≈ 0.0
+
+    
 end
 
 @testset "embed" test_embed()

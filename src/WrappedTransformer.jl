@@ -68,6 +68,8 @@ function show(io::IO, ::MIME"text/plain", r::HGFResidual)
         print(io, "HGFResidual(\"$(r.label)\", $(r.expression))")
     end
 end
+
+"Encapsulates the normalised weight output for a particular token by a language model"
 struct Prediction <: SymbolicTransformer.Prediction
     token_id
     logit
@@ -77,8 +79,28 @@ struct Prediction <: SymbolicTransformer.Prediction
     expression
     label
 end
+
+struct Prediction2 <: SymbolicTransformer.Prediction
+    unembed
+    residual
+    normalization_constant
+    max_logit
+    probability
+    expression
+    label
+end
+
+
+function probability(p::Prediction)
+    return p.probability
+end
+
+function logit(p::Prediction)
+    return p.logit
+end
+
 function show(io::IO, ::MIME"text/plain", p::SymbolicTransformer.Prediction)
-    probability = round(100*p.probability,digits=2)
+    probability = round(100*probability(p),digits=2)
     if (get(io, :compact, false) == true)
         print(io, "Prediction($probability% $(p.label)")
     else
@@ -255,22 +277,29 @@ end
 function LinearAlgebra.dot(v1:: Vector{HGFResidual}, v2:: Vector{HGFResidual})
     return dot.(v1, v2)
 end
-function normalization_constant(logits)
+
+"Returns the sum of the exponentials of the logits"
+function normalisation_constant(logits)
     return sum(exp.(logits))
 end
 
+"softmax normalisation from a logit value to a probability"
+function normalise_logit(logit, shift_logit, normalization_constant)
+     exp(logit-shift_logit) / normalization_constant
+end
+
+"Accepts a residual which represents output from the last position in the last block of a transformer, and returns 
+predictions for the next token. The returned predictions encapsulate the logit, normalized probability, and an expression 
+which traces the tokens involved in the prediction"
 function predict(T::PromptedTransformer,r:: HGFResidual)
-    "Accepts a residual which represents output from the last position in the last block of a transformer, and returns 
-    predictions for the next token. The returned predictions encapsulate the logit, normalized probability, and an expression 
-    which traces the tokens involved in the prediction"
     (_, logits) = T.unembed_layer((; hidden_state=r.vector))
     maxl = maximum(logits)
     shift_logits = logits .- maxl
-    nc = normalization_constant(shift_logits)
+    nc = normalisation_constant(shift_logits)
     
     result = [
         begin
-            probability = exp(logit-maxl) / nc
+            probability = normalise_logit(logit, maxl, nc)
             unembed_residual = unembed(T, token_id)        
             expression = :($(unembed_residual.expression) ⋅ $(r.expression))
             label = unembed_residual.label
@@ -340,4 +369,7 @@ function expand(T::PromptedTransformer, r:: HGFResidual)
     blocks = T.model
 end
 
+function split(prediction::Prediction, terms)
+
+end
 end
