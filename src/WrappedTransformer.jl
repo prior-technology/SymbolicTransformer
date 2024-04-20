@@ -7,7 +7,7 @@ using SymbolicTransformer
 using LinearAlgebra
 import Base.show
 
-export PromptedTransformer,PromptedTransformerBlock, HGFResidual, prompt, embed, unembed, predict, dot, prompt_residuals, extract_blocks, expand
+export PromptedTransformer,PromptedTransformerBlock, HGFResidual, prompt, embed, unembed, predict, dot, prompt_residuals, extract_blocks, expand, logit, probability
 
 "Wraps a transformer and encoder with a prompt"
 struct PromptedTransformer <: SymbolicTransformer.Operation
@@ -71,32 +71,23 @@ end
 
 "Encapsulates the normalised weight output for a particular token by a language model"
 struct Prediction <: SymbolicTransformer.Prediction
-    token_id
-    logit
-    normalization_constant
-    max_logit
-    probability
-    expression
-    label
-end
-
-struct Prediction2 <: SymbolicTransformer.Prediction
     unembed
     residual
     normalization_constant
     max_logit
-    probability
     expression
     label
+    token_id
 end
 
 
 function probability(p::Prediction)
-    return p.probability
+    return normalise_logit(logit(p), p.max_logit, p.normalization_constant)
 end
 
 function logit(p::Prediction)
-    return p.logit
+    
+    return Transpose(p.unembed.vector) ⋅ p.residual.vector
 end
 
 function show(io::IO, ::MIME"text/plain", p::SymbolicTransformer.Prediction)
@@ -299,16 +290,16 @@ function predict(T::PromptedTransformer,r:: HGFResidual)
     
     result = [
         begin
-            probability = normalise_logit(logit, maxl, nc)
+            #probability = normalise_logit(logit, maxl, nc)
             unembed_residual = unembed(T, token_id)        
             expression = :($(unembed_residual.expression) ⋅ $(r.expression))
             label = unembed_residual.label
-            Prediction(token_id, logit, nc, maxl, probability, expression, label)
+            Prediction(unembed_residual, r, nc, maxl,  expression, label, token_id)
         end
         for (token_id, logit) in enumerate(logits)
     ]
     #reorder by decreasing logit value
-    return sort!(result; by = x -> x.logit, rev=true, dims=1)
+    return sort!(result; by = x -> logit(x), rev=true, dims=1)
     
 end
 function wrap(ln::Transformers.Layers.LayerNorm)
