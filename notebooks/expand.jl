@@ -50,13 +50,13 @@ T = prompt(model, encoder, "1, 2, 3, 4")
 input = embed(T, ",")
 
 # ╔═╡ b674f0b8-4ae5-41a7-a005-7b9d605b48f4
-md"input is an array of HGFResidual, which wraps the residual vector from embedding each token. The * operator applies the T operator to the input by runining the combined input through the model. "
+md"input is an array of Residual, which wraps the residual vector from embedding each token. The * operator applies the T operator to the input by runining the combined input through the model. "
 
 # ╔═╡ 117b8732-4951-44a6-a641-8760da771997
 y = T * input
 
 # ╔═╡ 60d5ebfb-2355-4689-83dc-a9de6318e485
-The result y is another HGF resdidual representing the result of the language model before the unembedding layer.
+md"The result y is another Residual representing the result of the language model before the unembedding layer."
 
 # ╔═╡ 7f622c65-2c04-4911-ad70-a0a728357e14
 predictions = predict(T,first(y))
@@ -103,7 +103,7 @@ end
 
 # ╔═╡ dea9553d-dae0-43eb-be98-2c354d3c13e0
 md"""
- `block_deltas` now contains a vector of vectors of HgfResidual and `total_residual` has the final residual before layer normalization.
+ `block_deltas` now contains a vector of vectors of Residual and `total_residual` has the final residual before layer normalization.
 
 Calculating the factor used:
 

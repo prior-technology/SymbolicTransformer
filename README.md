@@ -54,16 +54,16 @@ Key1 + V2 + r
 
 I'm aiming to see the flow through using Transformers.jl with Pythia/GPTNeo-X models. Later it should be possible to abstract out the logic which doesn't directly depend on a specific implementation. Earlier work started to rewrite the algorithm from scratch, and earlier again focussed on abstract operations without specific implementations.
 
-`WrappedTransformer` represents the results of calculations in types like `HGFResidual`. These include an expression which tracks the origin of the associated result. 
+`WrappedTransformer` represents the results of calculations in types like `Residual`. These include an expression which tracks the origin of the associated result. 
 
 `PromptedTransformer` represents a specific transformer algorithm with prompt text. This acts on a residual vector using the `*` operation to run the internal blocks, returning the residual vector in the last position of the output layer (i.e. excluding input and output embedding layers). 
 
-`predict` is a function which runs the model and calculates logits and probabilities for all tokens, returning each as a HGFResidual which includes an expression which should perform a similar calculation (returning only logits since probabilities depends on all logits for other tokens)
+`predict` is a function which runs the model and calculates logits and probabilities for all tokens, returning each as a Residual which includes an expression which should perform a similar calculation (returning only logits since probabilities depends on all logits for other tokens)
 
-`embed` tokenizes the supplied string and returns a Vector of HGFResidual based on the corresponding entries in the embedding matrix of the transformer. If a transformer is 
+`embed` tokenizes the supplied string and returns a Vector of Residual based on the corresponding entries in the embedding matrix of the transformer. If a transformer is 
 not specified the last one defined is used.
 
-`unembed` tokenizes the supplied string and returns a Vector of HGFResidual based on the corresponding entries in the output embedding matrix of the transformer. These are stored as row-vectors in a vector of HGFResidual . 
+`unembed` tokenizes the supplied string and returns a Vector of Residual based on the corresponding entries in the output embedding matrix of the transformer. These are stored as row-vectors in a vector of Residual . 
 
 
 
@@ -73,10 +73,10 @@ julia> T = prompt(model, encoder, "1, 2, 3, 4")
 PromptedTransformer(Transformers.HuggingFace.HGFGPTNeoXModel, GPT2TextEncoder, "1, 2, 3, 4")
 
 julia> r = first(embed(T, ","))
-HGFResidual(",", embed(","))
+Residual(",", embed(","))
 
 julia> y = T * r
-HGFResidual("1, 2, 3, 4,", T * embed(","))
+Residual("1, 2, 3, 4,", T * embed(","))
 
 julia> predictions = predict(T,y)
 50304×1 Matrix{SymbolicTransformer.WrappedTransformer.Prediction}:

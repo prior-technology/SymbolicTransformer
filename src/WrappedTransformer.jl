@@ -7,7 +7,7 @@ using SymbolicTransformer
 using LinearAlgebra
 import Base.show
 
-export PromptedTransformer,PromptedTransformerBlock, HGFResidual, prompt, embed, unembed, predict, dot, prompt_residuals, extract_blocks, expand, logit, probability
+export PromptedTransformer,PromptedTransformerBlock, Residual, prompt, embed, unembed, predict, dot, prompt_residuals, extract_blocks, expand, logit, probability
 
 "Wraps a transformer and encoder with a prompt"
 struct PromptedTransformer <: SymbolicTransformer.Operation
@@ -53,7 +53,7 @@ struct PromptedTransformerBlock <: SymbolicTransformer.Operation
 end
 
 "Represents a vector in the transformer's residual space"
-struct HGFResidual <:  SymbolicTransformer.Residual
+struct Residual <:  SymbolicTransformer.Residual
     "vector in the residual space"
     vector 
     "Expression showing the source of this residual"
@@ -61,11 +61,11 @@ struct HGFResidual <:  SymbolicTransformer.Residual
     "Label for printing"
     label
 end
-function show(io::IO, ::MIME"text/plain", r::HGFResidual)
+function show(io::IO, ::MIME"text/plain", r::Residual)
     if (get(io, :compact, false) == true)
         print(io, r.expression)
     else
-        print(io, "HGFResidual(\"$(r.label)\", $(r.expression))")
+        print(io, "Residual(\"$(r.label)\", $(r.expression))")
     end
 end
 
@@ -133,7 +133,7 @@ function embed(transformer, utterance)
     vectors = transformer.embed_layer((; token=tokens))
     expressions = map(x -> :(embed($x)), labels)
     residuals = map(x -> 
-        HGFResidual(vectors.hidden_state[:,x],
+        Residual(vectors.hidden_state[:,x],
             expressions[x], 
             labels[x]), 
         1:length(labels))
@@ -153,7 +153,7 @@ function unembed(transformer, utterance::AbstractString)
     
     expressions = map(x -> :(unembed($x)), labels)
     residuals = map(x -> 
-        HGFResidual(adjoint(output_vectors[:,x]),
+        Residual(adjoint(output_vectors[:,x]),
             expressions[x], 
             labels[x]), 
         1:length(labels))
@@ -167,12 +167,12 @@ end
 function unembed(transformer, token_id::Integer)
     token_string = decode(transformer.encoder, token_id)
 
-    return HGFResidual(transformer.unembed_layer.layer.embed.embeddings[:,token_id], :(unembed($token_string)), token_string) 
+    return Residual(transformer.unembed_layer.layer.embed.embeddings[:,token_id], :(unembed($token_string)), token_string) 
 end
 
 
-function Base.:(+)(r1:: HGFResidual, r2:: HGFResidual)
-    return HGFResidual(r1.vector + r2.vector, :($(r1.expression) + $(r2.expression)), """$(r1.label) + $(r2.label)""")
+function Base.:(+)(r1:: Residual, r2:: Residual)
+    return Residual(r1.vector + r2.vector, :($(r1.expression) + $(r2.expression)), """$(r1.label) + $(r2.label)""")
 end
 
 """
@@ -213,10 +213,10 @@ function apply(B::PromptedTransformerBlock, hidden_state)
     return (; hidden_state=block_contribution)
 end
 
-function append_hidden_state(hidden_state, r::HGFResidual)
+function append_hidden_state(hidden_state, r::Residual)
     return hcat(hidden_state, r.vector)
 end
-function append_hidden_state(hidden_state, target_residuals:: AbstractVector{HGFResidual})
+function append_hidden_state(hidden_state, target_residuals:: AbstractVector{Residual})
     
     new_residual_matrix = hcat([r.vector for r in target_residuals]...)
     hcat(hidden_state, new_residual_matrix)
@@ -228,11 +228,11 @@ end
 function label(T::PromptedTransformerBlock)
     return "B"
 end
-function label(r:: HGFResidual)
+function label(r:: Residual)
     return r.label
 end
 "applies the model to the token"
-function Base.:(*)(T::SymbolicTransformer.Operation, r:: HGFResidual)
+function Base.:(*)(T::SymbolicTransformer.Operation, r:: Residual)
     #To transform a new token at the end of a batch of tokens, we would push! the index of the 
     #new token onto tokens.onehots, which applies a corresponding change to the tokens OneHotArray
 
@@ -240,9 +240,9 @@ function Base.:(*)(T::SymbolicTransformer.Operation, r:: HGFResidual)
     hidden_state = append_hidden_state(residuals.hidden_state, r)
     y = apply(T,hidden_state)
     #take the residual in the last position
-    return HGFResidual(y.hidden_state[:,end], :($(T.expression) * $(r.expression)), string(label(T), label(r)))
+    return Residual(y.hidden_state[:,end], :($(T.expression) * $(r.expression)), string(label(T), label(r)))
 end
-function Base.:(*)(Op::SymbolicTransformer.Operation, target_residuals :: AbstractVector{HGFResidual})
+function Base.:(*)(Op::SymbolicTransformer.Operation, target_residuals :: AbstractVector{Residual})
 
     residuals = prompt_residuals(Op)
     hidden_state = append_hidden_state(residuals.hidden_state, target_residuals)
@@ -250,22 +250,22 @@ function Base.:(*)(Op::SymbolicTransformer.Operation, target_residuals :: Abstra
     
     #return output residuals in positions corresponding with the target residuals    
     result_vectors = y.hidden_state[:,end-length(target_residuals)+1:end]
-    return [HGFResidual(result_vectors[:,i], :($(Op.expression) * $(target_residuals[i].expression)), string(label(Op), label(target_residuals[i]))) for i in eachindex(target_residuals)]
+    return [Residual(result_vectors[:,i], :($(Op.expression) * $(target_residuals[i].expression)), string(label(Op), label(target_residuals[i]))) for i in eachindex(target_residuals)]
 end
 
-function LinearAlgebra.dot(r1:: HGFResidual, r2:: HGFResidual)
-    return HGFResidual(LinearAlgebra.dot(r1.vector,r2.vector), :($(r1.expression) ⋅ $(r2.expression)), """< "$(r1.label)" | "$(r2.label)" >""")
+function LinearAlgebra.dot(r1:: Residual, r2:: Residual)
+    return Residual(LinearAlgebra.dot(r1.vector,r2.vector), :($(r1.expression) ⋅ $(r2.expression)), """< "$(r1.label)" | "$(r2.label)" >""")
 end
 
-function LinearAlgebra.transpose(r:: HGFResidual)
-    return HGFResidual(transpose(r.vector), :(transpose($(r.expression))), """ transpose($(r.label)) """)
+function LinearAlgebra.transpose(r:: Residual)
+    return Residual(transpose(r.vector), :(transpose($(r.expression))), """ transpose($(r.label)) """)
 end
 
-function LinearAlgebra.adjoint(r:: HGFResidual)
-    return HGFResidual(adjoint(r.vector), :(($(r.expression))'), """ ($(r.label))' """)
+function LinearAlgebra.adjoint(r:: Residual)
+    return Residual(adjoint(r.vector), :(($(r.expression))'), """ ($(r.label))' """)
 end
 
-function LinearAlgebra.dot(v1:: Vector{HGFResidual}, v2:: Vector{HGFResidual})
+function LinearAlgebra.dot(v1:: Vector{Residual}, v2:: Vector{Residual})
     return dot.(v1, v2)
 end
 
@@ -282,7 +282,7 @@ end
 "Accepts a residual which represents output from the last position in the last block of a transformer, and returns 
 predictions for the next token. The returned predictions encapsulate the logit, normalized probability, and an expression 
 which traces the tokens involved in the prediction"
-function predict(T::PromptedTransformer,r:: HGFResidual)
+function predict(T::PromptedTransformer,r:: Residual)
     (_, logits) = T.unembed_layer((; hidden_state=r.vector))
     maxl = maximum(logits)
     shift_logits = logits .- maxl
@@ -307,11 +307,11 @@ function wrap(ln::Transformers.Layers.LayerNorm)
 
 end
 
-function promptBlock(block::Transformers.Layers.AbstractTransformerBlock, residuals::AbstractVector{HGFResidual})
+function promptBlock(block::Transformers.Layers.AbstractTransformerBlock, residuals::AbstractVector{Residual})
 
     #return PromptedTransformerBlock(block, residuals,:($block * $residuals))
 end
-function wrap(transformer_blocks::Transformers.Layers.Transformer, input_residuals::AbstractVector{HGFResidual})
+function wrap(transformer_blocks::Transformers.Layers.Transformer, input_residuals::AbstractVector{Residual})
     #the operations within transformer operator are composed
     #so return an expression with each operation seperated by the composition operator ∘
     return []
@@ -355,7 +355,7 @@ function extract_blocks(T::PromptedTransformer)
     return extract_blocks(T.model, residuals)
 end
 
-function expand(T::PromptedTransformer, r:: HGFResidual)
+function expand(T::PromptedTransformer, r:: Residual)
     "Replace T with the blocks of the transformer"
     blocks = T.model
 end

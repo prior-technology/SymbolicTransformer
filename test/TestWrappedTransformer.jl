@@ -66,7 +66,7 @@ function test_inference()
     residuals = embed(T, ",")
     r=residuals[1]
     y = T * r
-    @test typeof(y) == HGFResidual
+    @test typeof(y) == Residual
     predictions = predict(T,y)
     p = first(predictions)
 
@@ -153,17 +153,17 @@ function test_split_prediction()
     token_id=1
     logit=3
     nc=WrappedTransformer.normalization_constant(shifted_logits)
-    residual = [HGFResidual([1, 2, 3, 4, 5, 6], :(test_unembed), "test_unembed")]
-    unembed = [HGFResidual([1, 2, 3, -1, -1, 1, -2], :(test_unembed), "test_unembed")]
+    residual = [Residual([1, 2, 3, 4, 5, 6], :(test_unembed), "test_unembed")]
+    unembed = [Residual([1, 2, 3, -1, -1, 1, -2], :(test_unembed), "test_unembed")]
     #probability= WrappedTransformer.normalise_logit(logit,max_logit,nc)
     expression=:(test)
     label="Test"
     target = Prediction(unembed, logit, nc, max_logit, expression, label)
     
-    #when I supply a vector of HGFResidual terms
+    #when I supply a vector of Residual terms
     terms = [
-        HGFResidual([1, 0, 0, 0, 0, 0, 0], :(test1), "Test1")
-        HGFResidual([0, 1, 0, 0, 0, 0, 0], :(test2), "Test2")
+        Residual([1, 0, 0, 0, 0, 0, 0], :(test1), "Test1")
+        Residual([0, 1, 0, 0, 0, 0, 0], :(test2), "Test2")
     ]
     (results, error) = expand(target, terms)
 
