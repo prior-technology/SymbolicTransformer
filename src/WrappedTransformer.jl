@@ -7,7 +7,7 @@ using SymbolicTransformer
 using LinearAlgebra
 import Base.show
 
-export PromptedTransformer,PromptedTransformerBlock, Residual, prompt, embed, unembed, predict, dot, prompt_residuals, extract_blocks, expand, logit, probability
+export PromptedTransformer,PromptedTransformerBlock, Residual, Prediction, prompt, embed, unembed, predict, dot, prompt_residuals, extract_blocks, expand, logit, probability
 
 "Wraps a transformer and encoder with a prompt"
 struct PromptedTransformer <: SymbolicTransformer.Operation
@@ -80,22 +80,29 @@ struct Prediction <: SymbolicTransformer.Prediction
     token_id
 end
 
-
-function probability(p::Prediction)
+struct PredictionTerm <: SymbolicTransformer.Prediction
+    unembed
+    residual
+    scale
+    normalization_constant
+    max_logit
+    expression
+end
+function probability(p::SymbolicTransformer.Prediction)
     return normalise_logit(logit(p), p.max_logit, p.normalization_constant)
 end
 
-function logit(p::Prediction)
+function logit(p::SymbolicTransformer.Prediction)
     
     return Transpose(p.unembed.vector) ⋅ p.residual.vector
 end
 
 function show(io::IO, ::MIME"text/plain", p::SymbolicTransformer.Prediction)
-    probability = round(100*probability(p),digits=2)
+    prob = round(100*probability(p),digits=2)
     if (get(io, :compact, false) == true)
-        print(io, "Prediction($probability% $(p.label)")
+        print(io, "Prediction($prob% $(p.label)")
     else
-        print(io, "Prediction($(round(100*p.probability,digits=2))% \"$(p.label)\", $(p.expression)")
+        print(io, "Prediction($prob% \"$(p.label)\", $(p.expression)")
     end
 end
 
@@ -349,18 +356,54 @@ end
 function extract_blocks(model::Transformers.HuggingFace.HGFGPTNeoXForCausalLM, prefix_residuals)    
     return extract_blocks(model.model, prefix_residuals)
 end
-
+"Returns a tuple of the LayerNorm and an array of PromptedTransformerBlock from a PromptedTransformer"
 function extract_blocks(T::PromptedTransformer)    
     residuals = prompt_residuals(T)
     return extract_blocks(T.model, residuals)
 end
 
-function expand(T::PromptedTransformer, r:: Residual)
-    "Replace T with the blocks of the transformer"
-    blocks = T.model
+"implement center for Residual type"
+function center(r::Residual)
+    Residual(center(r.vector), :(center($(r.expression))), """ center($(r.label)) """)
+end
+norm_square(r::Residual) = Residual(LinearAlgebra.norm(r.vector, 1), :(norm($r.expression, 1)), """ norm($r.label, 1) """)
+
+"Apply for"
+function rewrite(x::Residual, ln::Transformers.LayerNorm, normedTerms)
+    
+    
+    return (scale, seperateTerms)        
 end
 
-function split(prediction::Prediction, terms)
 
+"Replace a prediction with the contribution to the prediction from each block of the transformer"
+function expand(T::PromptedTransformer, prediction::Prediction)
+    
+    (ln, blocks) = extract_blocks(T)
+    input = embed(T, prediction.token_id)
+    blockOutputs = [input]
+    for block in blocks
+        blockOutput = block * sum(blockOutputs)
+        push!(blockOutputs, blockOutput)
+    end
+
+    
+    #<x, LN (a + b)> =  \frac{\sqrt{N}}{\sqrt{|c(a+b)|^2 + N \epsilon} } (<x,c(a)> + <x, c(b)>) 
+    N = length(x.vector)
+
+    scale = sqrt(N) / sqrt(norm_square(center(sum(blockOutputs))) + N * ln.ϵ)
+    centeredBlockOutputs = map(residual -> center(residual), blockOutputs)
+    return [
+        PredictionTerm(
+            prediction.unembed, 
+            residual, 
+            scale, 
+            prediction.normalization_constant, 
+            prediction.max_logit, 
+            :(prediction.expression)
+        ) 
+        for residual in centeredBlockOutputs
+    ]
 end
+
 end

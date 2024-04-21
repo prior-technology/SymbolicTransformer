@@ -7,6 +7,7 @@ export LN
 "Center vector to have mean 0"
 center(x) = x .- μ(x)
 
+
 "This implementation of  Layer Normalization is based on LayerNormPre in 
 Transformer Lens. Gives same result for specific example checked."
 #original 

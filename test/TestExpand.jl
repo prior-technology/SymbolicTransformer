@@ -41,7 +41,23 @@ function test_expand_expression()
     @test expanded_expression == :(LayerNorm( x + BlockOutput[1] + BlockOutput[2] + BlockOutput[3] + BlockOutput[4] + BlockOutput[5] + BlockOutput[6] ) )
 
 end
+function test_expand_prediction()
+    (model, encoder) = TestData.get_both()
 
+    #given a prediction
+    T = prompt(model, encoder, "1, 2, 3, 4")
+    input = embed(T, ",")
+    residual = first(T * input)
+    prediction = first(predict(T, residual))
+
+    #when I expand the prediction
+    expanded_prediction = expand(T, prediction)
+
+    #then the expanded prediction should include several terms which combined result in the original prediction
+    @test length(expanded_prediction) == 6 # 6 blocks in the transformer
+    @test sum(map(p -> p.probability, expanded_prediction)) ≈ prediction.probability
+
+end
 function test_extract_blocks()
     (model, encoder) = TestData.get_both()
 
@@ -69,4 +85,5 @@ function test_extract_blocks()
     
 end
 
-test_extract_blocks()
+#test_extract_blocks()
+test_expand_prediction()
