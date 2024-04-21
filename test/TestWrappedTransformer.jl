@@ -147,33 +147,32 @@ end
 function test_split_prediction()
     #given a Prediction
     #uses example https://en.wikipedia.org/w/index.php?title=Softmax_function&oldid=1218697397#Example
-    logits = [1, 2, 3, 4, 1, 2, 3]
+    logits = [1, 2, 3, 4, 1, 2, 1]
     max_logit = 4
     shifted_logits = logits .- max_logit
     token_id=1
-    logit=3
-    nc=WrappedTransformer.normalization_constant(shifted_logits)
-    residual = [Residual([1, 2, 3, 4, 5, 6], :(test_unembed), "test_unembed")]
-    unembed = [Residual([1, 2, 3, -1, -1, 1, -2], :(test_unembed), "test_unembed")]
+    nc=WrappedTransformer.normalisation_constant(shifted_logits)
+    residual = Residual([1, 3, 3, -1, -2, -3], :(test_residual), "test_residual")
+    unembed = Residual([0.1, 1, 0.1, 0.1, 0.1, 0.1], :(test_unembed), "test_unembed")
     #probability= WrappedTransformer.normalise_logit(logit,max_logit,nc)
     expression=:(test)
     label="Test"
-    target = Prediction(unembed, logit, nc, max_logit, expression, label)
+    token_id=1
+    target = Prediction(unembed, residual, nc, max_logit, expression, label, 1)
     
     #when I supply a vector of Residual terms
     terms = [
-        Residual([1, 0, 0, 0, 0, 0, 0], :(test1), "Test1")
-        Residual([0, 1, 0, 0, 0, 0, 0], :(test2), "Test2")
+        Residual([1, 2, 3, 0, 0, 0], :(test1), "Test1")
+        Residual([0, 1, 0, -1, -2, 3], :(test2), "Test2")
     ]
-    (results, error) = expand(target, terms)
+    (results, error) = split(target, terms)
 
 
     #then I get a vector of PredictionParts showing contribution percentage, along with an error term
     @test length(results) == 2
-    @test results[1].contribution ≈ 0.0320586
-    @test results[2].contribution ≈ 0.9679414
+    @test results[1].contribution ≈ (logit(target) * (2/3))
+    @test results[2].contribution ≈ (logit(target) * (1/3))
     @test error ≈ 0.0
-
     
 end
 
