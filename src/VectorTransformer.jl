@@ -4,7 +4,7 @@
 using LinearAlgebra
 import NNlib
 
-export ModelConfig, Pythia70ModelConfig
+export ModelConfig, Pythia70ModelConfig, center
 
 struct ModelConfig
     seq_len :: Integer 
