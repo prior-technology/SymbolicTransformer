@@ -93,12 +93,16 @@ struct PredictionTerm <: SymbolicTransformer.Prediction
     max_logit
     expression
 end
+
 function probability(p::SymbolicTransformer.Prediction)
     return normalise_logit(logit(p), p.max_logit, p.normalization_constant)
 end
 
+function logit(p::PredictionTerm)    
+    return p.scale * ( Transpose(p.unembed.vector) ⋅ p.residual.vector )
+end
+
 function logit(p::SymbolicTransformer.Prediction)
-    
     return Transpose(p.unembed.vector) ⋅ p.residual.vector
 end
 
@@ -394,6 +398,15 @@ function prediction_terms(prediction::Prediction)
     args = prediction.expression.args
     return (args[2], args[3])
 end
+
+function affine(LN::Transformers.Layers.LayerNorm, x::Vector{Float32})
+    return x .* LN.α .+ LN.β
+end
+
+function affine(LN::Transformers.Layers.LayerNorm, x::Residual)
+    return Residual(affine(LN, x.vector), :(a($x)), """a($(x.label))""")
+end
+
 "Replace a prediction with the contribution to the prediction from each block of the transformer"
 function expand(T::PromptedTransformer, prediction::Prediction)
     
@@ -413,16 +426,22 @@ function expand(T::PromptedTransformer, prediction::Prediction)
     (lhs, rhs) = prediction_terms(prediction)
     scale = sqrt(N) / sqrt(norm_square(center(sum(blockOutputs))) + N * ln.ϵ)
     centeredBlockOutputs = map(residual -> center(residual), blockOutputs)
+    transformedBlockOutputs = map(residual -> affine(ln, residual), centeredBlockOutputs)
     return [
+
         PredictionTerm(
             prediction.unembed, 
             residual, 
             scale, 
             prediction.normalization_constant, 
             prediction.max_logit, 
-            :($lhs ⋅ expand(T, $rhs)[$i])
+            if (i==1) 
+                :($lhs ⋅ center($(input.expression)))
+            else
+                :($lhs ⋅ expand(T, $rhs)[$i])
+            end
         ) 
-        for (i,residual) in enumerate(centeredBlockOutputs)
+        for (i,residual) in enumerate(transformedBlockOutputs)
     ]
 end
 

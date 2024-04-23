@@ -55,7 +55,7 @@ function test_expand_prediction()
 
     #then the expanded prediction should include several terms which combined result in the original prediction
     @test length(expanded_prediction) == 7 # 6 blocks in the transformer + input residual
-    @test sum(map(p -> p.probability, expanded_prediction)) ≈ prediction.probability
+    @test sum(map(p -> probability(p), expanded_prediction)) ≈ probability(prediction)
 
 end
 function test_extract_blocks()
