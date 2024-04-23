@@ -135,7 +135,7 @@ function test_prefix_block()
     input_residuals = prompt_residuals(T)
 
     #when I prefix the block with the residuals
-    (new_residuals, prompted_transformer_block) = WrappedTransformer.prefix_block(transformerBlock, input_residuals)
+    (new_residuals, prompted_transformer_block) = WrappedTransformer.prefix_block(transformerBlock, input_residuals, :(a ⋅ b))
 
     #then the resulting block should hold the input residuals
     @test prompted_transformer_block.prompt_residuals == input_residuals
