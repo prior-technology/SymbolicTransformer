@@ -91,11 +91,16 @@ struct PredictionTerm <: SymbolicTransformer.Prediction
     scale
     normalization_constant
     max_logit
+    prediction_logit
     expression
 end
 
 function probability(p::SymbolicTransformer.Prediction)
     return normalise_logit(logit(p), p.max_logit, p.normalization_constant)
+end
+
+function probability(p::PredictionTerm)
+    return (logit(p)/p.prediction_logit) * normalise_logit(p.prediction_logit, p.max_logit, p.normalization_constant)
 end
 
 function logit(p::PredictionTerm)    
@@ -120,7 +125,8 @@ function show(io::IO, ::MIME"text/plain", p::PredictionTerm)
     if (get(io, :compact, false) == true)
         print(io, "Prediction($prob%)")
     else
-        print(io, "Prediction($prob% $(p.expression))")
+        l = round(logit(p),digits=2)
+        print(io, "Prediction($prob% l=$l $(p.expression))")
     end
 end
 
@@ -406,12 +412,15 @@ end
 function affine(LN::Transformers.Layers.LayerNorm, x::Residual)
     return Residual(affine(LN, x.vector), :(a($x)), """a($(x.label))""")
 end
-
+function gain(LN::Transformers.Layers.LayerNorm, x::Residual)
+    return Residual(x.vector .* LN.α, :(α $x), """gain($(x.label))""")
+end
 "Replace a prediction with the contribution to the prediction from each block of the transformer"
 function expand(T::PromptedTransformer, prediction::Prediction)
     
     (ln, blocks) = extract_blocks(T)
     input = embed(T, prediction.token_id)
+    #wrong - this should be center(embed(",")))
     blockOutputs = [input]
     for (i,block) in enumerate(blocks)
         blockOutput = block * sum(blockOutputs)
@@ -426,7 +435,8 @@ function expand(T::PromptedTransformer, prediction::Prediction)
     (lhs, rhs) = prediction_terms(prediction)
     scale = sqrt(N) / sqrt(norm_square(center(sum(blockOutputs))) + N * ln.ϵ)
     centeredBlockOutputs = map(residual -> center(residual), blockOutputs)
-    transformedBlockOutputs = map(residual -> affine(ln, residual), centeredBlockOutputs)
+    transformedBlockOutputs = map(residual -> gain(ln, residual), centeredBlockOutputs)
+    push!(transformedBlockOutputs, Residual(ln.β, :(β), "β"))
     return [
 
         PredictionTerm(
@@ -435,8 +445,11 @@ function expand(T::PromptedTransformer, prediction::Prediction)
             scale, 
             prediction.normalization_constant, 
             prediction.max_logit, 
+            logit(prediction),
             if (i==1) 
                 :($lhs ⋅ center($(input.expression)))
+            elseif (i==length(transformedBlockOutputs))
+                :($lhs ⋅ T.ln.β)
             else
                 :($lhs ⋅ expand(T, $rhs)[$i])
             end

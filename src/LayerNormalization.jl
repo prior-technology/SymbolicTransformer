@@ -19,3 +19,10 @@ function LN(v, ϵ = 1e-5)
     scale = (μ((v .- μ(v)).^2) + ϵ).^(-0.5)    
     top .* scale
 end
+
+affine(x, α, β) = α .* x .+ β
+
+"This method implements Layer Norm as including affine transform, as used in Transformers.jl"
+LN(α, β, v, ϵ = 1e-5) = affine(LN(v, ϵ), α, β)
+
+
