@@ -390,6 +390,8 @@ end
 function center(r::Residual)
     Residual(SymbolicTransformer.center(r.vector), :(center($(r.expression))), """ center($(r.label)) """)
 end
+
+norm_square(vector) = LinearAlgebra.norm(vector, 1)
 norm_square(r::Residual) = LinearAlgebra.norm(r.vector, 1)
 
 "Apply for"
@@ -412,15 +414,27 @@ end
 function affine(LN::Transformers.Layers.LayerNorm, x::Residual)
     return Residual(affine(LN, x.vector), :(a($x)), """a($(x.label))""")
 end
-function gain(LN::Transformers.Layers.LayerNorm, x::Residual)
-    return Residual(x.vector .* LN.α, :(α $x), """gain($(x.label))""")
+function gain(LN::Transformers.Layers.LayerNorm, x::AbstractVector)
+    return x .* LN.α
 end
+function gain(LN::Transformers.Layers.LayerNorm, x::Residual)
+    return Residual(gain(LN, x.vector), :(α $x), """gain($(x.label))""")
+end
+
+function expand(ln, xs, y)
+    
+    #<y, LN (a + b)> =  \frac{\sqrt{N}}{\sqrt{|c(a+b)|^2 + N \epsilon} } (<y,c(a)> + <y, c(b)>) 
+    N = length(xs[1])
+    scale = sqrt(N) / sqrt(norm_square(center(sum(xs))) + N * ln.ϵ)
+    transformed_xs = map(x -> gain(ln, center(x)), xs)
+    return scale .* transformed_xs
+end
+
 "Replace a prediction with the contribution to the prediction from each block of the transformer"
-function expand(T::PromptedTransformer, prediction::Prediction)
+function expand(T::PromptedTransformer, prediction::Prediction, input::Residual)
     
     (ln, blocks) = extract_blocks(T)
-    input = embed(T, prediction.token_id)
-    #wrong - this should be center(embed(",")))
+    
     blockOutputs = [input]
     for (i,block) in enumerate(blocks)
         blockOutput = block * sum(blockOutputs)

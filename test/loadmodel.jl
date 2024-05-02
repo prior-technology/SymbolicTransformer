@@ -1,11 +1,14 @@
 module TestData
 
 using Memoization
+#import HuggingFaceApi: set_endpoint
 import Transformers.HuggingFace: load_config,load_model,load_tokenizer
 
 const model = "EleutherAI/pythia-14m"
 
 @memoize function get_config()
+#    set_endpoint("file:///C:\\Users\\StephenPrior\\.julia\\dev\\SymbolicTransformer\\data\\EleutherAI\\pythia-14m\\resolve\\main")
+    
     return load_config(model)
 end
 @memoize function get_encoder()

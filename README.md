@@ -92,7 +92,14 @@ Many of the types added include an expression which shows how that result was ca
 
 ## Current task
 
-Add an expand function or rule which replaces transformer with the blocks it contains. This needs to be worked through in more detail.
+Add an expand function or rule which replaces transformer with the blocks it contains. This is working as far as expanding the full algorithm into a term for each block. The next step is to use an equivalence from Layer Normalise applied to a sum of 
+terms to a sum of layer normalised terms. This is returning results which are close, but the difference is greater than expected from rounding errors. 
+
+$$<x, LN (a + b)> = \frac{\sqrt{N}}{\sqrt{|c(a+b)|^2 + N \epsilon} } <x,c(a)> + <x, c(b)> $$
+
+The derivation of this relationship is in reexamine_layer_norm.ipynb, but did not include applying the affine transformation. I think the LN used in Transformer Lens may be different to that from Transformers.jl. I'm currently trying to retrace my steps on this.
+
+This equivalence is also important for the next step, decomposing a Block operation into contributions from Attention and from the Dense layer, from which it will hopefully be possible to see which earlier tokens affected the transformer output.
 
 ### Splitting transformer into blocks
 
