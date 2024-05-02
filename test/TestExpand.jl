@@ -1,11 +1,33 @@
 using SymbolicTransformer
 using Test
+using Transformers
+using Transformers.Layers
 using Transformers.HuggingFace
 using Transformers.TextEncoders
 using SymbolicTransformer.WrappedTransformer
 using TextEncodeBase
 using LinearAlgebra
 
+
+function test_expand_ln()
+    #given a LayerNorm
+    N = 5
+    alpha = Test.Random.randn(Float32, N)
+    beta = Test.Random.randn(Float32, N)
+    epsilon = 1e-5
+    ln = Transformers.Layers.LayerNorm(alpha, beta, epsilon)
+    xs = [Test.Random.randn(Float32, N) for _ in 1:10]
+    y = Test.Random.randn(Float32, N)
+    x_total = sum(xs)
+
+    #when I expand the LayerNorm
+    expanded_ln = expand(ln, xs, y)
+    expected = y ⋅ ln(x_total)
+    actual = sum(map(ex -> y ⋅ ex, expanded_ln)) + (y ⋅ beta)
+    #then 
+    @test expected≈actual
+
+end
 
 function test_expand_residual()
     (model, encoder) = TestData.get_both()
@@ -51,11 +73,11 @@ function test_expand_prediction()
     prediction = first(predict(T, residual))
 
     #when I expand the prediction
-    expanded_prediction = expand(T, prediction)
-
+    expanded_prediction = expand(T, prediction, first(input))
+    
     #then the expanded prediction should include several terms which combined result in the original prediction
     @test length(expanded_prediction) == 8 # 6 blocks in the transformer + input residual + bias
-    @test sum(map(p -> probability(p), expanded_prediction)) ≈ probability(prediction)
+    @test sum(map(p -> logit(p), expanded_prediction)) ≈ logit(prediction)
 
 end
 function test_extract_blocks()
@@ -86,4 +108,5 @@ function test_extract_blocks()
 end
 
 #test_extract_blocks()
-test_expand_prediction()
+#test_expand_prediction()
+test_expand_ln()
