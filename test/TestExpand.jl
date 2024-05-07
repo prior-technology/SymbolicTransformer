@@ -107,6 +107,7 @@ function test_extract_blocks()
     
 end
 
-#test_extract_blocks()
-#test_expand_prediction()
+test_extract_blocks()
+test_expand_prediction()
+test_expand_residual()
 test_expand_ln()
