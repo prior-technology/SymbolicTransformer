@@ -13,3 +13,27 @@ include("../data/pre_norm.jl")
 
     
 end
+
+@testset "Layer Normalization" begin
+    N=8
+    
+    alpha = Test.Random.randn(Float32, N)
+    beta = Test.Random.randn(Float32, N)
+    epsilon = 1e-5
+    ln = Transformers.Layers.LayerNorm(alpha, beta, epsilon)
+    xs = [Test.Random.randn(Float32, N) for _ in 1:10]
+    y = Test.Random.randn(Float32, N)
+    x_total = sum(xs)
+
+    #when I expand the LayerNorm
+    expanded_ln = expand(ln, xs, y)
+    expected = y ⋅ ln(x_total)
+    actual = sum(map(ex -> y ⋅ ex, expanded_ln)) + (y ⋅ beta)
+    #then 
+    @test expected≈actual
+
+    @testset "center" begin
+
+    end
+    
+end
