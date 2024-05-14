@@ -8,7 +8,7 @@ using LinearAlgebra
 import Base.show
 import SymbolicTransformer.center
 
-export PromptedTransformer,PromptedTransformerBlock, Residual, Prediction, prompt, embed, unembed, predict, dot, prompt_residuals, extract_blocks, expand, logit, probability
+export PromptedTransformer,PromptedTransformerBlock, Residual, Prediction, prompt, embed, unembed, predict, dot, prompt_residuals, extract_blocks, expand, logit, probability, block_outputs
 
 "Wraps a transformer and encoder with a prompt"
 struct PromptedTransformer <: SymbolicTransformer.Operation
@@ -430,6 +430,20 @@ function expand(ln, xs, y)
     return scale .* transformed_xs
 end
 
+#TODO: implement for vector of residuals by appending to the prompt
+#function block_outputs(T::PromptedTransformer, inputs::Vector{Residual})
+
+function block_outputs(T::PromptedTransformer, input::Residual)
+    
+    (ln, blocks) = extract_blocks(T)
+    
+    blockOutputs = [input]
+    for block in blocks
+        blockOutput = block * sum(blockOutputs)
+        push!(blockOutputs, blockOutput)
+    end
+    return (ln,blockOutputs)
+end
 "Replace a prediction with the contribution to the prediction from each block of the transformer"
 function expand(T::PromptedTransformer, prediction::Prediction, input::Residual)
     
