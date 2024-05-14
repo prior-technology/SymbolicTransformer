@@ -2,3 +2,4 @@
 **/.CondaPkg/*
 scratch/*.ipynb
 **/models/*
+/data/*
