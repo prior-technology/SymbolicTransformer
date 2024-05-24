@@ -421,13 +421,18 @@ function gain(LN::Transformers.Layers.LayerNorm, x::Residual)
     return Residual(gain(LN, x.vector), :(α $x), """gain($(x.label))""")
 end
 
-function expand(ln, xs, y)
+function bias(LN::Transformers.Layers.LayerNorm)
+    return LN.β
+end
+
+function expand(ln, xs)
     
     #<y, LN (a + b)> =  \frac{\sqrt{N}}{\sqrt{|c(a+b)|^2 + N \epsilon} } (<y,c(a)> + <y, c(b)>) 
+    #$$ <x , LN(a+b)> = <x, \lambda c(a) \odot \gamma> + <x, \lambda c(b) \odot \gamma> + <x, \beta>$$
     N = length(xs[1])
-    scale = sqrt(N) / sqrt(norm_square(center(sum(xs))) + N * ln.ϵ)
-    transformed_xs = map(x -> gain(ln, center(x)), xs)
-    return scale .* transformed_xs
+    λ = sqrt(N) / sqrt(norm_square(center(sum(xs))) + N * ln.ϵ)
+    
+    return map(x -> λ .* gain(ln, center(x)), xs)
 end
 
 #TODO: implement for vector of residuals by appending to the prompt

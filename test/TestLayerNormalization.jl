@@ -31,7 +31,7 @@ end
     x_total = sum(xs)
 
     #when I expand the LayerNorm
-    expanded_ln = expand(ln, xs, y)
+    expanded_ln = expand(ln, xs)
     expected = y ⋅ ln(x_total)
     actual = sum(map(ex -> y ⋅ ex, expanded_ln)) + (y ⋅ beta)
     #then 
