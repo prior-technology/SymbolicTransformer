@@ -109,7 +109,7 @@ julia> expand(T, predictions[1], r)
 
 ## Expressions
 
-Many of the types added include an expression which shows how that result was calculated. Expressions like  `(unembed(" 5") ⋅ (T * embed(","))` are runnable but depend on having a PromptedTransformer named T, and the embed/unembed variables refer to this from a global variable which tracks the most recently defined PromptedTransformer.
+Many of the types added include an expression which shows how that result was calculated. Expressions like  `(unembed(" 5") ⋅ (T * embed(","))` are runnable but depend on having a PromptedTransformer named T, and the embed/unembed functions refer to this from a global variable which tracks the most recently defined PromptedTransformer.
 
 
 
