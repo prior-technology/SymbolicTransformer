@@ -1,9 +1,11 @@
 module SymbolicTransformer
 
+ 
 abstract type Operation end
 #     expression :: Expr
 #     label :: AbstractString
 # end
+abstract type PromptedTransformer <: Operation end
 
 abstract type Residual end
 #     vector :: AbstractVector
@@ -15,7 +17,7 @@ abstract type Prediction end
 include("LayerNormalization.jl")
 include("VectorTransformer.jl")
 include("WrappedTransformer.jl")
-
+include("Expand.jl")
 
 
     
