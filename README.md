@@ -52,6 +52,57 @@ Key1 + V2 + r
 
 # Plans and Progress
 
+This refactor branch is intended to enable more readable expressions with clearer separation between the trained model, 
+the context, and between operations and vectors.
+
+## Problem
+th 
+The representation of how the different blocks of a transformer contribute to a particular prediction looks like:
+
+```Prediction(0.01% l=0.54 unembed(" 5") ⋅ (expand(T, T * embed(",")))[3])```
+
+This is difficult to parse but still loses too much relevant information required for the next stage of processing.
+
+Instead of trying to encapsulate everything in a prediction type can we split some of this out using different operations.
+
+In words: "In a specific context when the transformer acts on the embedding vector for token ",", and considering the
+predicted likelihood that the next token is " 5", the output of the 3rd block contributes 0.54 to resulting logit, which
+represents a contribution of 0.01% to the likelihood."
+
+Can we center the Residual vectors and operations rather than the prediction.
+
+Prompted Transformer T("1,2,3,4") acting on Residual embed(",") is a process/operation/transformation which could be
+referred to and analysed.
+
+So `T(1,2,3,4) ∘ embed(",")`would return the output residual in the last position.
+
+Transformation is represented as an expression `transformation = :T(1,2,3,4) ∘ embed(",")`
+
+block(3) references the 3rd block
+internal_vector = output(transformation,block(3))
+
+
+
+
+
+
+## High Level Concepts
+
+Residual : a vector in the residual space of a particular Transformer
+Map : maps one residual to another, not necessarily linear or invertible
+Unembed : maps a residual to a logit
+Prediction
+Transformer maps a sequence of residuals to another
+
+PromptedTransformer maps one residual to another.
+
+Reference - identifies a block, position within a block,head, etc.
+
+
+
+
+## Previous Description
+
 I'm aiming to see the flow through using Transformers.jl with Pythia/GPTNeo-X models. Later it should be possible to abstract out the logic which doesn't directly depend on a specific implementation. Earlier work started to rewrite the algorithm from scratch, and earlier again focussed on abstract operations without specific implementations.
 
 `WrappedTransformer` represents the results of calculations in types like `Residual`. These include an expression which tracks the origin of the associated result. 
