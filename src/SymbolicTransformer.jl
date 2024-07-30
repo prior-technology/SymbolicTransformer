@@ -12,10 +12,10 @@ abstract type Residual end
 # end
 abstract type Prediction end
 
-include("LayerNormalization.jl")
-include("VectorTransformer.jl")
-include("WrappedTransformer.jl")
 
+function expand(expr::Expr)
+    return expr
+end
 
 
     
