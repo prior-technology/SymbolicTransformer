@@ -1,5 +1,7 @@
 module SymbolicTransformer
 
+include("LayerNormalization.jl")
+
 abstract type Operation end
 #     expression :: Expr
 #     label :: AbstractString
