@@ -61,16 +61,34 @@ The representation of how the different blocks of a transformer contribute to a 
 
 ```Prediction(0.01% l=0.54 unembed(" 5") ⋅ (expand(T, T * embed(",")))[3])```
 
-This is difficult to parse but still loses too much relevant information required for the next stage of processing.
+This is difficult to parse but still loses too much relevant information required for the next stage, where we seperate contributions 
+from attention and MLP layers of that block.
 
 Instead of trying to encapsulate everything in a prediction type can we split some of this out using different operations.
 
-In words: "In a specific context when the transformer acts on the embedding vector for token ",", and considering the
+In words, the summary above says: "In a specific context when a prompted transformer acts on the embedding vector for token ",", and considering the
 predicted likelihood that the next token is " 5", the output of the 3rd block contributes 0.54 to resulting logit, which
 represents a contribution of 0.01% to the likelihood."
 
-Can we center the Residual vectors and operations rather than the prediction.
+The significant challenge in readability is the (expand(T, T * embed(",")))[3] expression, which represents the output of the third block when PromptedTransformer T acts on Residual embed(","). Alternative ways to write this could be
 
+ - block(3, :(T * embed(",")))
+ - expand(T, T * embed(","))[3]
+ - transformation = :(T * embed(","))
+   transformation.block[3]
+
+Can we center the Residual vectors and operations rather than the prediction?
+
+Let T be a bare trained transformer model (i.e. without embedding/unembedding layers)
+E be the embedding layer
+U the unembedding layer
+A Residual is a vector in the residual space of a transformer
+A Prompted Transformer is combination of Transformer, Text and corresponding Residual vectors.
+A Transformation is the operation of a Prompted Transformer on a sequence of Residuals
+
+Prediction is the probability next token will be y given output residual x. This depends on all unembedding vectors (so softmax can be calculated)
+
+Expand(expression) tries to replace the top layer of an expression with its components how each block contributes to x. It depends on PT and input residual
 Prompted Transformer T("1,2,3,4") acting on Residual embed(",") is a process/operation/transformation which could be
 referred to and analysed.
 
@@ -78,12 +96,16 @@ So `T(1,2,3,4) ∘ embed(",")`would return the output residual in the last posit
 
 Transformation is represented as an expression `transformation = :T(1,2,3,4) ∘ embed(",")`
 
-block(3) references the 3rd block
+block(3) references the 3rd block, block(1) and block(last) are also possible
+
 internal_vector = output(transformation,block(3))
 
+## New Usage
 
-
-
+\given PromptedTransformer T, function embed, unembed
+prompt(string)
+embed(string) should return a list of Residuals
+unembed(string) should return a string
 
 
 ## High Level Concepts
