@@ -2,6 +2,7 @@ module SymbolicTransformer
 
 include("LayerNormalization.jl")
 
+abstract type Prediction end
 
 """
     Returned from prompt, holds Transformer T, embedding weights W_E, and unembedding weights W_U

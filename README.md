@@ -17,14 +17,18 @@ julia> using Transformers.HuggingFace
 
 julia> using SymbolicTransformer
 
-julia> encoder, model = hgf"EleutherAI/pythia-70m-deduped"
+julia> using WrappedJlTransformer
 
+julia> wrapped = wrap(hgf"EleutherAI/pythia-70m-deduped")
+WrappedTransformer
 
-julia> T = prompt(model, encoder, "The capital of Ireland")
+julia> T = prompt(wrapped, "The capital of Ireland")
 PromptedTransformer
 
-julia> T.embed(" is")
-Vector{1,}
+julia> T.embed(" is a city called")
+:T.E[" is", " a", " city", " called"]
+
+
 
 julia> T * r
 Residual(T * " is")
