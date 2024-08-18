@@ -23,13 +23,13 @@ julia> encoder, model = hgf"EleutherAI/pythia-70m-deduped"
 julia> T = prompt(model, encoder, "The capital of Ireland")
 PromptedTransformer
 
-julia> embed(T, " is")
-Residual(" is")
+julia> T.embed(" is")
+Vector{1,}
 
 julia> T * r
 Residual(T * " is")
 
-julia> :(T * r)
+julia> :(T(r))
 :(T * r)
 
 julia> expand(:(T * r))
@@ -56,7 +56,7 @@ This refactor branch is intended to enable more readable expressions with cleare
 the context, and between operations and vectors.
 
 ## Problem
-th 
+
 The representation of how the different blocks of a transformer contribute to a particular prediction looks like:
 
 ```Prediction(0.01% l=0.54 unembed(" 5") ⋅ (expand(T, T * embed(",")))[3])```
@@ -81,25 +81,17 @@ Transformation is represented as an expression `transformation = :T(1,2,3,4) ∘
 block(3) references the 3rd block
 internal_vector = output(transformation,block(3))
 
-
-
-
-
-
 ## High Level Concepts
 
 Residual : a vector in the residual space of a particular Transformer
 Map : maps one residual to another, not necessarily linear or invertible
 Unembed : maps a residual to a logit
-Prediction
+Prediction : given model with tokenizer, 
 Transformer maps a sequence of residuals to another
 
 PromptedTransformer maps one residual to another.
 
 Reference - identifies a block, position within a block,head, etc.
-
-
-
 
 ## Previous Description
 
@@ -161,8 +153,5 @@ julia> expand(T, predictions[1], r)
 ## Expressions
 
 Many of the types added include an expression which shows how that result was calculated. Expressions like  `(unembed(" 5") ⋅ (T * embed(","))` are runnable but depend on having a PromptedTransformer named T, and the embed/unembed functions refer to this from a global variable which tracks the most recently defined PromptedTransformer.
-
-
-
 
 [![Build Status](https://github.com/prior-technology/SymbolicTransformer/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/prior-technology/SymbolicTransformer/actions/workflows/CI.yml?query=branch%3Amain)
