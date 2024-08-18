@@ -1,5 +1,5 @@
-
-export LN
+module LayerNormalization
+export LN, center
 
 "Expectation or Mean of a vector"
 μ(v) = sum(v)/size(v,1)
@@ -27,5 +27,4 @@ affine(γ, β, x ) = γ .* x .+ β
 "This method implements Layer Norm as including affine transform, as used in Transformers.jl"
 LN(γ, β, x, ϵ = 1e-5) = affine(γ, β, LN(x, ϵ))
 
-
-
+end
