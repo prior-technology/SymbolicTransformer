@@ -8,37 +8,51 @@ Language models consist of billions of numbers which are combined in a complicat
 
 ## Short Term Goal
 
-To generate values representing inputs and outputs to a transformer language model which can be combined to perform the model's processing, and allow terms to be
-expanded to show intermediate steps.
+To generate values representing inputs and outputs to a transformer language model which can be combined to perform the model's processing, and allow terms to be expanded to show intermediate steps.
 
-```julia
+Prompting a model should return a type containing:
+ - `context`\
+   This encapsulates a specific language model and tokenizer, and any other model specific data required.   
+ - `setup`\
+   This expression defines symbols used in the expression depending on prompt text and any subsequent manipulation. It assumes context is available through a symbol ctx
+ - `transform`\
+   This should be a simple expression showing the operation of the transformer on a vector in the embedding space.
+ - `interpretation`\
+   This expression defines the output of the model (e.g. prediction of next token) using symbols from the previous stages.
+
+
+```julia-repl
 
 julia> using Transformers.HuggingFace
 
 julia> using SymbolicTransformer
 
-julia> using WrappedJlTransformer
-
-julia> wrapped = wrap(hgf"EleutherAI/pythia-70m-deduped")
+julia> context = init_context(hgf"EleutherAI/pythia-70m-deduped")
 WrappedTransformer
 
-julia> T = prompt(wrapped, "The capital of Ireland")
-PromptedTransformer
+julia> T = prompt(context, "The capital of Ireland is")
+Transformation(
+       :(T = ctx.transformer.embed("the capital of Ireland is")),
+       :(y = T * E[is]),
+       :empty       
+)
 
-julia> T.embed(" is a city called")
-:T.E[" is", " a", " city", " called"]
+julia> generate(T)
 
+Transformation(
+       :(T = ctx.transformer.embed("the capital of Ireland is")),
+       :(y = T * E[is]),
+       quote
+              logits = ctx.embed_out(y)
+              next_token_logits = logits[:, -1, :]
+              next_token_id = torch.argmax(next_token_logits, dim=-1)  
+              next_token = ctx.tokenizer.decode(next_token_id)
+              return next_token
+       end
+)
 
-
-julia> T * r
-Residual(T * " is")
-
-julia> :(T(r))
-:(T * r)
-
-julia> expand(:(T * r))
-:(L4 * (L3 * (L2 * (L1 * r))))
-
+julia> expand(context, :(T * E[is]))
+:(L4 * (L3 * (L2 * (L1 * E[is]))))
 
 ```
 
