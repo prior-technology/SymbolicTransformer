@@ -33,7 +33,7 @@ WrappedTransformer
 julia> T = prompt(context, "The capital of Ireland is")
 Transformation(
        :(T = ctx.transformer.embed("the capital of Ireland is")),
-       :(y = T * E[is]),
+       :(y = T * ctx.embed("is")),
        :empty       
 )
 

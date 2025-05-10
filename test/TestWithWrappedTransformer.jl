@@ -1,7 +1,8 @@
-using SymbolicTransformer
 using Test
-using WrappedTransformer
+using Transformers.HuggingFace
+using SymbolicTransformer
+
 
 function test_embed()
-    prompt(model, "bla bla bla")
+    context = init_context("EleutherAI/pythia-14m")
 end
