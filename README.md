@@ -1,117 +1,81 @@
 # SymbolicTransformer
 
-This project works through some ideas around language model interpretability through Julia.
+This project provides symbolic notation and manipulation tools for transformer language model interpretability in Julia, designed to work with [TransformerAlgebra](../TransformerAlgebra) (Python).
 
-# Motivation
+## Architecture
 
-Language models consist of billions of numbers which are combined in a complicated pattern with other blocks of numbers which represent meaningful text to generate more numbers representing more text. The goal is to name symbols and operations representing different stages of this calculation so they can be reasoned about further
+SymbolicTransformer delegates model operations to Python via [PythonCall.jl](https://github.com/JuliaPy/PythonCall.jl), while providing Julia-native symbolic expression types and manipulation.
 
-## Short Term Goal
+- **Interface.jl** - Reference types and symbolic expression types (Embedding, Unembedding, Residual, BlockContrib, etc.)
+- **PythonBridge.jl** - Connection to Python's TransformerAlgebra service
+- **LayerNormalization.jl** - Pure Julia layer normalization implementation
 
-To generate values representing inputs and outputs to a transformer language model which can be combined to perform the model's processing, and allow terms to be
-expanded to show intermediate steps.
-
-```julia
-
-julia> using Transformers.HuggingFace
-
-julia> using SymbolicTransformer
-
-julia> encoder, model = hgf"EleutherAI/pythia-70m-deduped"
-
-
-julia> T = prompt(model, encoder, "The capital of Ireland")
-PromptedTransformer
-
-julia> embed(T, " is")
-Residual(" is")
-
-julia> T * r
-Residual(T * " is")
-
-julia> :(T * r)
-:(T * r)
-
-julia> expand(:(T * r))
-:(L4 * (L3 * (L2 * (L1 * r))))
-
-
-```
-
-## Medium Term Goal
-
-To use attribution, gradients and estimation to identify and extract features relevant to a particular calculation through the model, and to neglect terms
-which have lower relevance to a particular calculation.
+## Installation
 
 ```julia
-
-julia> L1 * r
-Key1 + V2 + r 
-
+using Pkg
+Pkg.develop(path="path/to/SymbolicTransformer")
 ```
 
-# Plans and Progress
+## Dependencies
 
-I'm aiming to see the flow through using Transformers.jl with Pythia/GPTNeo-X models. Later it should be possible to abstract out the logic which doesn't directly depend on a specific implementation. Earlier work started to rewrite the algorithm from scratch, and earlier again focussed on abstract operations without specific implementations.
+- `JSON3` - JSON serialization for Python communication
+- `PythonCall` - Julia-Python interop
+- `LaTeXStrings` - LaTeX formatting support
+- `LinearAlgebra` - Standard library
 
-`WrappedTransformer` represents the results of calculations in types like `Residual`. These include an expression which tracks the origin of the associated result. 
+## Usage
 
-`PromptedTransformer` represents a specific transformer algorithm with prompt text. This acts on a residual vector using the `*` operation to run the internal blocks, returning the residual vector in the last position of the output layer (i.e. excluding input and output embedding layers). 
+```julia
+using SymbolicTransformer
 
-`predict` is a function which runs the model and calculates logits and probabilities for all tokens, returning each as a Residual which includes an expression which should perform a similar calculation (returning only logits since probabilities depends on all logits for other tokens)
+# Connect to Python's TransformerAlgebra
+bridge = connect("EleutherAI/pythia-160m-deduped")
 
-`embed` tokenizes the supplied string and returns a Vector of Residual based on the corresponding entries in the embedding matrix of the transformer. If a transformer is 
-not specified the last one defined is used.
+# Analyze a prompt
+analysis = analyze(bridge, "The capital of Ireland")
 
-`unembed` tokenizes the supplied string and returns a Vector of Residual based on the corresponding entries in the output embedding matrix of the transformer. These are stored as row-vectors in a vector of Residual . 
+# Get top predictions
+preds = top_predictions(analysis)
 
-
-
-```julia-repl
-
-julia> using Transformers.HuggingFace
-       using SymbolicTransformer;
-       using SymbolicTransformer.WrappedTransformer;
-       const encoder = hgf"EleutherAI/pythia-14m:tokenizer"
-       const model = hgf"EleutherAI/pythia-14m:forcausallm"
-
-julia> T = prompt(model, encoder, "1, 2, 3, 4")
-PromptedTransformer(Transformers.HuggingFace.HGFGPTNeoXModel, GPT2TextEncoder, "1, 2, 3, 4")
-
-julia> r = first(embed(T, ","))
-Residual(",", embed(","))
-
-julia> y = T * r
-Residual("1, 2, 3, 4,", T * embed(","))
-
-julia> predictions = predict(T,y)
-50304×1 Matrix{SymbolicTransformer.WrappedTransformer.Prediction}:
- Prediction(26.35% " 5", unembed(" 5") ⋅ (T * embed(","))
- Prediction(24.51% " 4", unembed(" 4") ⋅ (T * embed(","))
- Prediction(6.75% " 3", unembed(" 3") ⋅ (T * embed(","))
- Prediction(6.37% " 6", unembed(" 6") ⋅ (T * embed(","))
-```
-The expand command seperates contributions to the logit from each of the 7 transformer block and from the embedding residual.
-
-```julia-repl
-julia> expand(T, predictions[1], r)
-8-element Vector{SymbolicTransformer.WrappedTransformer.PredictionTerm}:
- Prediction(-0.06% l=-3.79 unembed(" 5") ⋅ center(embed(",")))
- Prediction(0.06% l=3.31 unembed(" 5") ⋅ (expand(T, T * embed(",")))[2])
- Prediction(0.01% l=0.54 unembed(" 5") ⋅ (expand(T, T * embed(",")))[3])
- Prediction(0.31% l=18.36 unembed(" 5") ⋅ (expand(T, T * embed(",")))[4])
- Prediction(-0.02% l=-1.05 unembed(" 5") ⋅ (expand(T, T * embed(",")))[5])
- Prediction(0.57% l=34.38 unembed(" 5") ⋅ (expand(T, T * embed(",")))[6])
- Prediction(14.21% l=852.58 unembed(" 5") ⋅ (expand(T, T * embed(",")))[7])
- Prediction(11.55% l=693.33 unembed(" 5") ⋅ T.ln.β)
-
+# Decompose a logit into per-block contributions
+decompose(analysis, " Dublin")
 ```
 
-## Expressions
+## Symbolic Types
 
-Many of the types added include an expression which shows how that result was calculated. Expressions like  `(unembed(" 5") ⋅ (T * embed(","))` are runnable but depend on having a PromptedTransformer named T, and the embed/unembed functions refer to this from a global variable which tracks the most recently defined PromptedTransformer.
+The package provides symbolic reference and expression types:
 
+### References (point to data in Python)
+- `TokenRef` - Reference to a token in vocabulary
+- `EmbeddingRef` - Reference to embedding vector
+- `UnembeddingRef` - Reference to unembedding vector
+- `ResidualRef` - Reference to cached residual vector
+- `BlockContribRef` - Reference to block contribution
 
+### Expressions (for symbolic manipulation)
+- `Embedding`, `Unembedding` - Vector expressions
+- `Residual`, `BlockContrib` - Residual stream expressions
+- `Sum`, `Scaled` - Composite expressions
+- `LayerNorm` - Layer-normalized expression
+- `InnerProduct` - Scalar expression (logit)
 
+## Expansion Rules
+
+Expressions can be expanded to show intermediate computations:
+
+```julia
+# Expand residual into embedding + block contributions
+# x^L_j = embed_j + Dx^1_j + Dx^2_j + ... + Dx^L_j
+expanded = expand(residual, n_layers)
+
+# Expand inner product through layer norm
+# <y, LN(a + b)> = scale * (<g*y, c(a)> + <g*y, c(b)>) + <y, beta>
+expanded = expand(inner_product)
+```
+
+## Status
+
+This package is under active development. The Julia SymbolicTransformer and Python TransformerAlgebra are designed to work together - Julia handles symbolic manipulation while Python handles model operations via HuggingFace transformers.
 
 [![Build Status](https://github.com/prior-technology/SymbolicTransformer/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/prior-technology/SymbolicTransformer/actions/workflows/CI.yml?query=branch%3Amain)
